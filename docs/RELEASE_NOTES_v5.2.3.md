@@ -1,8 +1,8 @@
 # MTGA Collection Reader 5.2.5
 
-## Standalone collection archive importer
+## Your Arena collection, without a subscription
 
-MTGA Collection Reader is now explicitly positioned as a standalone collection archive and export utility. It does not build, recommend, or publish decks.
+MTGA Collection Reader is a free, standalone way to export the Arena cards you own for any theorycrafting workflow. It does not build, recommend, or publish decks—and it does not lock your collection behind a subscription.
 
 ## Reliability and security
 

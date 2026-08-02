@@ -1,14 +1,15 @@
 # MTGA Collection Reader
 
-A standalone Windows archive and export tool for **your MTG Arena card collection**.
+A free, standalone Windows exporter for **your owned MTG Arena cards**. Use the exported files in whichever deck theorycrafting, brewing, collection, or spreadsheet tool you prefer—without a subscription.
 
-> This is not a deck builder. It imports, preserves, and exports collection snapshots; it does not create, edit, evaluate, or publish decks.
+> This is not a deck builder. It gives you a portable record of what you own; it does not create, edit, evaluate, or publish decks.
 
 ## What it does
 
 - One-click read-only collection sync when MTG Arena is open and at the Home screen.
 - Stores every accepted snapshot locally in SQLite, so a working collection history is never silently replaced.
 - Exports JSON, CSV, and text collection files.
+- Keeps the collection portable, so you can theorycraft anywhere rather than being locked into one service.
 - Accepts manual JSON snapshots when an Arena update temporarily affects automatic sync.
 - Protects against empty imports and suspicious large collection drops.
 - Optionally exposes the latest snapshot through a token-protected, localhost-only JSON API for tools you choose to connect.
