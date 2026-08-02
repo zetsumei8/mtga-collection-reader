@@ -1,0 +1,4 @@
+* text=auto
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+v5.1.0_to_v5.2.0.patch -whitespace

@@ -1,0 +1,146 @@
+{
+  "product": "MTGA Collection Reader / WB Fox Bridge",
+  "version": "5.2.0",
+  "files": [
+    {
+      "path": "CHANGES.md",
+      "sha256": "27c65955228eea274502b4853ee93a2c92ed4c8888dcc1eee56a9fdeae0d259a",
+      "size": 917
+    },
+    {
+      "path": "CODEX_PATCH_HANDOFF.md",
+      "sha256": "6b53cfdce4613e811daab0ba6050ac31e14595fe8696345a44d4b01b9563d3ce",
+      "size": 3097
+    },
+    {
+      "path": "CODEX_PATCH_HANDOFF_v5.2.0.md",
+      "sha256": "6b53cfdce4613e811daab0ba6050ac31e14595fe8696345a44d4b01b9563d3ce",
+      "size": 3097
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "2352d9d0136a27082d028deaaa6d23a63dd76b542a137cfcbebcac5a33641809",
+      "size": 1069
+    },
+    {
+      "path": "PATCH_NOTES_v5.2.0.md",
+      "sha256": "8f1c83d6e65dcd1f78c5682b5aeba1e2c18a83c43c9ffb5b397e517efdef82fb",
+      "size": 661
+    },
+    {
+      "path": "README.md",
+      "sha256": "71121bbcdda9078099399fe2e992417bc0e548ae82faa7b73eee4dd99ddde1ef",
+      "size": 3212
+    },
+    {
+      "path": "THIRD_PARTY_NOTICES.md",
+      "sha256": "2802b41dbd69d5af52daf85a589bdf346693e8fab5b829fe7fc0171b1b751a77",
+      "size": 679
+    },
+    {
+      "path": "VALIDATION.md",
+      "sha256": "cd263a91c7c387a43607bdf31cf891df97504a3fd3754b7db46949b09761ce29",
+      "size": 1216
+    },
+    {
+      "path": "app_manifest.json",
+      "sha256": "05b4b84e37985ea8a37029697e72e62dd9fa2382d7af1eaf845efb46b36b0c6f",
+      "size": 825
+    },
+    {
+      "path": "bridge_service.py",
+      "sha256": "9b127ddba31d00d188dbdb76f90776bc59a8fc525282470f5d50f0a9c10d7de0",
+      "size": 4620
+    },
+    {
+      "path": "build_exe.bat",
+      "sha256": "41363aaa6158ad42c3bdbecc88e963241e49ca71eb4d75e7818c1bf46df8941c",
+      "size": 1447
+    },
+    {
+      "path": "card_database.py",
+      "sha256": "25b8fb6076073f93e37b738fe7a27f9555d8bd2e2b04bf1b112ddfa1cddc80a6",
+      "size": 10048
+    },
+    {
+      "path": "change_storage_drive.bat",
+      "sha256": "47327522fabe11d97c9a3a44874b49ca402a18b4b62f1f69aa9387468a1a6a0a",
+      "size": 341
+    },
+    {
+      "path": "collection_store.py",
+      "sha256": "7cec66dc72f1d20f6ffab012cc95e0883c25bd7d471cc5c0be7a8bbedafd3dd2",
+      "size": 34595
+    },
+    {
+      "path": "daemon_provider.py",
+      "sha256": "e8b157a789b461aceb348ad332557d9b976f4741342710828474b918d380180d",
+      "size": 17701
+    },
+    {
+      "path": "exports.py",
+      "sha256": "98317c1360944eb9b2ca29e70ec21a066097c6855ec2a8c5365eeb33735dd23a",
+      "size": 3148
+    },
+    {
+      "path": "install.bat",
+      "sha256": "bb81676e52aec5d3549a6cf16cf8910bb3175299cb4acf726888ac9ac0b8dcdd",
+      "size": 11540
+    },
+    {
+      "path": "installed_version.txt",
+      "sha256": "e791457c25b99d69f3d5ca028f6a7f6d88f7e2d85af5162a92a8c5f3aecf59b0",
+      "size": 6
+    },
+    {
+      "path": "manual_import.py",
+      "sha256": "92a6820dc99c30401b61f00e85e9a821d197f7b0a7e2b35dbb4decf7573d8aed",
+      "size": 2142
+    },
+    {
+      "path": "mtg.py",
+      "sha256": "ed7d7e2923c14d3c2fecb65d541b5e8495f9c71671da0c3e176197458f6f01ad",
+      "size": 35138
+    },
+    {
+      "path": "patch_old_install.bat",
+      "sha256": "ac65316afd68a1d33c49200b29d7487ee09d89b85101de07649d56efa67b63cd",
+      "size": 2002
+    },
+    {
+      "path": "patch_old_install.ps1",
+      "sha256": "42c0f7337d7b85183a2452df3b75ddc10b9b40e965599361edf69aaafa80fde0",
+      "size": 15829
+    },
+    {
+      "path": "provider_contract.py",
+      "sha256": "64e6b5f1bb4c5562a1ee79c53de6c7f73b31f505e61e45f66583137055cc441b",
+      "size": 5365
+    },
+    {
+      "path": "requirements.txt",
+      "sha256": "dfb599a9b86d5de859901751a5562b7103217f4de74f4313c95998ea422c345a",
+      "size": 18
+    },
+    {
+      "path": "run_bridge.bat",
+      "sha256": "22b63f383bfeef3a21ef61ef5296ed795f81daf2de53940bb2f746746c6e4cbd",
+      "size": 519
+    },
+    {
+      "path": "run_reader.bat",
+      "sha256": "9e01efd880f903a266624101a0d832aaf2f980938bf56f7bca6fdddfbbef4607",
+      "size": 1627
+    },
+    {
+      "path": "tests/test_v520.py",
+      "sha256": "bf54f4fdca92d51d541f5f7b7149db5debbbde717f7d3011b82b9c18bf4d54ec",
+      "size": 11139
+    },
+    {
+      "path": "v5.1.0_to_v5.2.0.patch",
+      "sha256": "ff8bc0fadb597354565d8d06481375b742fb075edef9861e3cb79b25c3b6fe59",
+      "size": 433692
+    }
+  ]
+}

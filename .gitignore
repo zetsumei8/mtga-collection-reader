@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+
+# Build output
+build/
+dist/
+*.spec
+
+# Application runtime and private collection data
+runtime_path.txt
+Data/
+Exports/
+Package Cache/
+*.db
+*.db-shm
+*.db-wal
+bridge_token.txt
+settings.json
+logs/
+tools/
+
+# Editor and OS files
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
