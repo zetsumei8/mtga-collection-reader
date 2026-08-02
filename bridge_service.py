@@ -31,6 +31,10 @@ def ensure_token(path: Path) -> str:
     temp = path.with_suffix(".tmp")
     temp.write_text(token, encoding="utf-8")
     temp.replace(path)
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass
     return token
 
 
@@ -45,6 +49,9 @@ class BridgeHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -67,7 +74,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
             self._json(
                 200,
                 {
-                    "service": "wb-fox-bridge",
+                    "service": "mtga-collection-api",
                     "schemaVersion": 1,
                     "hasCollection": latest is not None,
                     "latestSnapshotId": latest.get("snapshot_id") if latest else None,
@@ -86,7 +93,13 @@ class BridgeHandler(BaseHTTPRequestHandler):
         self._json(404, {"error": "not found"})
 
     def do_POST(self) -> None:  # noqa: N802
-        if self.path == "/v1/shutdown" and self._authorized():
+        if self.client_address[0] not in {"127.0.0.1", "::1"}:
+            self._json(403, {"error": "local requests only"})
+            return
+        if not self._authorized():
+            self._json(401, {"error": "missing or invalid bridge token"})
+            return
+        if self.path == "/v1/shutdown":
             self._json(202, {"status": "shutdown accepted"})
             self.server.shutdown()
             return

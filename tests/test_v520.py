@@ -14,11 +14,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import daemon_provider
+import manual_import
+import provider_contract
 from bridge_service import BridgeHandler, ensure_token
 from card_database import prepare_database
 from collection_store import CollectionStore, SuspiciousSnapshotError
 from daemon_provider import DaemonProviderError, HelperInstall, MtgaDaemonProvider, _extract_archive_safely, ensure_helper, parse_all_cards_payload, parse_cards_payload
-from manual_import import load_manual_snapshot
+from manual_import import ManualImportError, load_manual_snapshot
 from provider_contract import SnapshotValidationError, build_snapshot
 
 
@@ -57,6 +59,20 @@ def test_provider_validation() -> None:
     else:
         raise AssertionError("empty snapshot was accepted")
 
+    original_limit = provider_contract.MAX_SNAPSHOT_CARDS
+    provider_contract.MAX_SNAPSHOT_CARDS = 2
+    try:
+        build_snapshot(
+            source="manual-import",
+            cards=[{"arenaId": 1101, "quantity": 1}, {"arenaId": 1102, "quantity": 1}, {"arenaId": 1103, "quantity": 1}],
+        )
+    except SnapshotValidationError:
+        pass
+    else:
+        raise AssertionError("oversized snapshot was accepted")
+    finally:
+        provider_contract.MAX_SNAPSHOT_CARDS = original_limit
+
 
 def test_manual_formats(root: Path) -> None:
     canonical = root / "canonical.json"
@@ -70,6 +86,19 @@ def test_manual_formats(root: Path) -> None:
     numeric = root / "map.json"
     numeric.write_text(json.dumps({"2003": 1, "2004": 2}))
     assert load_manual_snapshot(numeric).unique_cards == 2
+
+    too_large = root / "too-large.json"
+    too_large.write_text("{}")
+    original_limit = manual_import.MAX_MANUAL_IMPORT_BYTES
+    manual_import.MAX_MANUAL_IMPORT_BYTES = 1
+    try:
+        load_manual_snapshot(too_large)
+    except ManualImportError:
+        pass
+    else:
+        raise AssertionError("oversized manual import was accepted")
+    finally:
+        manual_import.MAX_MANUAL_IMPORT_BYTES = original_limit
 
 
 def test_helper_payloads() -> None:
@@ -298,11 +327,19 @@ def test_bridge_token_and_http(root: Path) -> None:
             assert exc.code == 401
         else:
             raise AssertionError("bridge accepted a request without a token")
+        shutdown = urllib.request.Request(base + "/v1/shutdown", method="POST")
+        try:
+            urllib.request.urlopen(shutdown, timeout=2)
+        except urllib.error.HTTPError as exc:
+            assert exc.code == 401
+        else:
+            raise AssertionError("bridge accepted shutdown without a token")
         request = urllib.request.Request(
             base + "/v1/collection", headers={"Authorization": f"Bearer {token}"}
         )
         with urllib.request.urlopen(request, timeout=2) as response:
             payload = json.loads(response.read().decode("utf-8"))
+            assert response.headers["X-Content-Type-Options"] == "nosniff"
         assert payload["cards"] == [{"arenaId": 7777, "quantity": 2}]
     finally:
         server.shutdown()
@@ -322,7 +359,7 @@ def main() -> int:
         test_mocked_daemon_snapshot(root / "mock")
         test_snapshot_store(root / "store")
         test_bridge_token_and_http(root / "bridge")
-    print("v5.2.1 validation: 9 test groups passed")
+    print("v5.2.2 validation: 9 test groups passed")
     return 0
 
 

@@ -10,6 +10,9 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Protocol, Seque
 
 SCHEMA_VERSION = 1
 AUTHORITATIVE_SOURCES = {"mtga-memory", "manual-import"}
+# Arena's card database is far below this. The ceiling prevents a malformed or
+# hostile manual input from exhausting memory while retaining ample future headroom.
+MAX_SNAPSHOT_CARDS = 100_000
 
 
 def utc_now() -> str:
@@ -101,6 +104,10 @@ def normalize_cards(raw_cards: Iterable[Mapping[str, Any]]) -> tuple[List[Collec
     duplicate_ids: List[int] = []
     nonstandard_quantities: List[Dict[str, int]] = []
     for index, raw in enumerate(raw_cards):
+        if index >= MAX_SNAPSHOT_CARDS:
+            raise SnapshotValidationError(
+                f"A collection snapshot may contain at most {MAX_SNAPSHOT_CARDS:,} card records."
+            )
         arena_value = raw.get("arenaId", raw.get("arena_id", raw.get("grpId", raw.get("id"))))
         quantity_value = raw.get("quantity", raw.get("owned", raw.get("count", raw.get("qty"))))
         try:

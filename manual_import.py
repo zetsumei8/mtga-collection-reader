@@ -12,6 +12,9 @@ class ManualImportError(RuntimeError):
     pass
 
 
+MAX_MANUAL_IMPORT_BYTES = 64 * 1024 * 1024
+
+
 def _records_from_payload(payload: Any) -> Iterable[Mapping[str, Any]]:
     if isinstance(payload, dict):
         cards = payload.get("cards")
@@ -38,7 +41,15 @@ def _records_from_payload(payload: Any) -> Iterable[Mapping[str, Any]]:
 def load_manual_snapshot(path: Path) -> CollectionSnapshot:
     source_path = Path(path).expanduser()
     try:
+        if not source_path.is_file():
+            raise ManualImportError(f"The selected import is not a readable file: {source_path}")
+        if source_path.stat().st_size > MAX_MANUAL_IMPORT_BYTES:
+            raise ManualImportError(
+                f"Manual snapshots must be at most {MAX_MANUAL_IMPORT_BYTES // (1024 * 1024)} MB."
+            )
         payload = json.loads(source_path.read_text(encoding="utf-8-sig"))
+    except ManualImportError:
+        raise
     except OSError as exc:
         raise ManualImportError(f"Could not read {source_path}: {exc}") from exc
     except json.JSONDecodeError as exc:

@@ -1,6 +1,6 @@
 {
   "app_name": "MTGA Collection Reader",
-  "version": "5.2.1",
+  "version": "5.2.2",
   "product_name": "MTGA Collection Reader",
   "managed_files": [
     "mtg.py",

@@ -31,7 +31,9 @@ PINNED_DOWNLOAD_URL = (
     f"https://github.com/{UPSTREAM_REPOSITORY}/releases/download/"
     f"{PINNED_TAG}/{WINDOWS_ASSET_NAME}"
 )
-USER_AGENT = "MTGA-Collection-Reader/5.2.1"
+USER_AGENT = "MTGA-Collection-Reader/5.2.2"
+MAX_HELPER_ARCHIVE_BYTES = 100 * 1024 * 1024
+MAX_HELPER_EXTRACTED_BYTES = 250 * 1024 * 1024
 
 
 class DaemonProviderError(RuntimeError):
@@ -126,6 +128,7 @@ def _extract_archive_safely(archive: Path, destination: Path) -> None:
         bad = zipped.testzip()
         if bad:
             raise DaemonProviderError(f"Downloaded helper archive is corrupt at {bad}.")
+        extracted_size = 0
         for info in zipped.infolist():
             relative = Path(info.filename.replace("\\", "/"))
             target = (destination_root / relative).resolve()
@@ -134,6 +137,9 @@ def _extract_archive_safely(archive: Path, destination: Path) -> None:
                 raise DaemonProviderError("Downloaded helper archive contains an unsafe file path.")
             if is_symlink:
                 raise DaemonProviderError("Downloaded helper archive contains an unsupported symbolic link.")
+            extracted_size += info.file_size
+            if extracted_size > MAX_HELPER_EXTRACTED_BYTES:
+                raise DaemonProviderError("Downloaded helper archive is unexpectedly large.")
         zipped.extractall(destination_root)
 
 
@@ -187,6 +193,8 @@ def ensure_helper(data_dir: Path, reporter: Any = None) -> HelperInstall:
         ) as response:
             response.raise_for_status()
             total = int(response.headers.get("Content-Length") or 0)
+            if total > MAX_HELPER_ARCHIVE_BYTES:
+                raise DaemonProviderError("Downloaded helper archive is unexpectedly large.")
             written = 0
             with archive.open("wb") as handle:
                 for chunk in response.iter_content(chunk_size=1024 * 512):
@@ -195,6 +203,8 @@ def ensure_helper(data_dir: Path, reporter: Any = None) -> HelperInstall:
                         continue
                     handle.write(chunk)
                     written += len(chunk)
+                    if written > MAX_HELPER_ARCHIVE_BYTES:
+                        raise DaemonProviderError("Downloaded helper archive is unexpectedly large.")
                     _call(reporter, "progress", written, max(total, written), "Downloading Arena helper")
         archive_hash = _sha256(archive)
         staging.mkdir(parents=True, exist_ok=True)
