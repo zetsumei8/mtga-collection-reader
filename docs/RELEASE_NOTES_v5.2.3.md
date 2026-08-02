@@ -1,0 +1,28 @@
+# MTGA Collection Reader 5.2.3
+
+## Standalone collection archive importer
+
+MTGA Collection Reader is now explicitly positioned as a standalone collection archive and export utility. It does not build, recommend, or publish decks.
+
+## Reliability and security
+
+- Fixed SQLite connection cleanup that could lock the database on Windows.
+- Added safe helper archive extraction and archive-size limits.
+- Verifies helper downloads against GitHub-published SHA-256 digests before installation.
+- Rejects oversized manual imports and implausibly large snapshots.
+- Tightened the optional localhost Collection API: authenticated shutdown, no-cache and browser-hardening headers, and private token-file permissions where supported.
+- Added offline regression coverage and GitHub Actions validation.
+
+## Upgrade
+
+Extract the release and run `install.bat`. Existing runtime data, snapshots, exports, and helper cache remain separate from application files.
+
+## Release verification
+
+Run:
+
+```powershell
+Get-FileHash .\MTGA_Collection_Reader_v5.2.3_Verified.zip -Algorithm SHA256
+```
+
+Compare it with the SHA-256 published alongside the release.

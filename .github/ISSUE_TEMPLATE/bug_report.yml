@@ -1,0 +1,30 @@
+name: Bug report
+description: Report a reproducible problem with collection import, export, or the local API.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Do not attach collection exports, databases, tokens, diagnostics containing personal paths, or credentials."
+  - type: input
+    id: version
+    attributes:
+      label: Reader version
+    validations:
+      required: true
+  - type: input
+    id: arena_version
+    attributes:
+      label: MTG Arena version
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include what you expected and what happened.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized diagnostics
+      description: Remove usernames, paths, tokens, and collection data.

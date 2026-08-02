@@ -360,7 +360,7 @@ def main() -> int:
         test_mocked_daemon_snapshot(root / "mock")
         test_snapshot_store(root / "store")
         test_bridge_token_and_http(root / "bridge")
-    print("v5.2.3 validation: 9 test groups passed")
+    print("v5.2.5 validation: 9 test groups passed")
     return 0
 
 

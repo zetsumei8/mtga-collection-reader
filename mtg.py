@@ -1,4 +1,4 @@
-"""MTGA Collection Reader 5.2.3.
+"""MTGA Collection Reader 5.2.5.
 
 Normal use is one click: the app installs and starts an independent read-only
 Arena helper, reads the complete owned-card snapshot, saves it, and stops the
@@ -30,7 +30,7 @@ from daemon_provider import DaemonProviderError, MtgaDaemonProvider
 from provider_contract import CollectionSnapshot
 
 APP_NAME = "MTGA Collection Reader"
-APP_VERSION = "5.2.3"
+APP_VERSION = "5.2.5"
 DEFAULT_RAW_FOLDER = Path(r"G:\MTGA\MTGA_Data\Downloads\Raw")
 
 BG = "#10151D"
@@ -195,8 +195,8 @@ class App(tk.Tk):
         sidebar = tk.Frame(self, bg="#0C1118", width=200)
         sidebar.pack(side="left", fill="y")
         sidebar.pack_propagate(False)
-        tk.Label(sidebar, text="WB FOX", bg="#0C1118", fg=TEXT, font=("Segoe UI", 19, "bold")).pack(anchor="w", padx=22, pady=(24, 0))
-        tk.Label(sidebar, text="COLLECTION BRIDGE", bg="#0C1118", fg=MUTED, font=("Segoe UI", 8, "bold")).pack(anchor="w", padx=22, pady=(0, 28))
+        tk.Label(sidebar, text="MTGA", bg="#0C1118", fg=TEXT, font=("Segoe UI", 19, "bold")).pack(anchor="w", padx=22, pady=(24, 0))
+        tk.Label(sidebar, text="COLLECTION ARCHIVE", bg="#0C1118", fg=MUTED, font=("Segoe UI", 8, "bold")).pack(anchor="w", padx=22, pady=(0, 28))
         self.nav_buttons: Dict[str, tk.Button] = {}
         for key, label in (("scan", "Sync"), ("collection", "Collection"), ("history", "Snapshots"), ("settings", "Settings")):
             button = tk.Button(
@@ -303,6 +303,8 @@ class App(tk.Tk):
         controls.pack(fill="x", pady=(8, 0))
         self.stop_button = ttk.Button(controls, text="Cancel", style="Danger.TButton", command=self._stop_worker, state="disabled")
         self.stop_button.pack(side="right")
+        ttk.Button(controls, text="Open diagnostics", command=lambda: open_path(self.data_dir / "logs")).pack(side="right", padx=(0, 8))
+        ttk.Button(controls, text="Copy API endpoint", command=self._copy_api_endpoint).pack(side="right", padx=(0, 8))
         ttk.Button(controls, text="Start local Collection API", command=self._start_bridge).pack(side="right", padx=(0, 8))
         ttk.Button(controls, text="Open exports", command=lambda: open_path(Path(self.output_path_var.get()))).pack(side="right", padx=(0, 8))
 
@@ -537,7 +539,7 @@ class App(tk.Tk):
             **details,
         }
         paths = write_collection_exports(self.store.collection_rows(), Path(self.output_path_var.get()), report, self.reporter)
-        canonical = Path(self.output_path_var.get()) / "wb_fox_collection_snapshot.json"
+        canonical = Path(self.output_path_var.get()) / "mtga_collection_snapshot.json"
         canonical.write_text(json.dumps(snapshot.to_dict(), indent=2), encoding="utf-8")
         self.reporter.emit(
             "complete",
@@ -607,6 +609,12 @@ class App(tk.Tk):
         self.bridge_thread = threading.Thread(target=serve, daemon=True)
         self.bridge_thread.start()
         self._set_banner("COLLECTION API STARTED", "Listening only on 127.0.0.1:6842. Token is in the Data folder.", "good")
+
+    def _copy_api_endpoint(self) -> None:
+        endpoint = "http://127.0.0.1:6842/v1/collection"
+        self.clipboard_clear()
+        self.clipboard_append(endpoint)
+        self._set_banner("API ENDPOINT COPIED", endpoint + " — start the local API before using it.", "good")
 
     def _export_current(self) -> None:
         try:

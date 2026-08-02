@@ -12,7 +12,7 @@ set "PATCH_MODE=0"
 set "PATCH_TARGET_ARG="
 set "SKIP_ACTION_MENU=0"
 set "PATCH_RUNTIME=0"
-set "APP_VERSION=5.2.3"
+set "APP_VERSION=5.2.5"
 
 :parse_args
 if "%~1"=="" goto :args_done
@@ -161,11 +161,7 @@ exit /b 0
 
 :resolve_runtime_location
 set "RUNTIME_ROOT="
-if defined RUNTIME_PARENT_ARG (
-    set "SELECTED_PARENT=!RUNTIME_PARENT_ARG!"
-    call :finalize_runtime_parent
-    exit /b !errorlevel!
-)
+if defined RUNTIME_PARENT_ARG goto :resolve_runtime_parent_arg
 if exist "%LOCATION_FILE%" set /p "RUNTIME_ROOT="<"%LOCATION_FILE%"
 
 if "%FORCE_CHOOSE%"=="1" (
@@ -190,6 +186,11 @@ if defined RUNTIME_ROOT (
 )
 
 call :choose_runtime_location
+exit /b !errorlevel!
+
+:resolve_runtime_parent_arg
+set "SELECTED_PARENT=!RUNTIME_PARENT_ARG!"
+call :finalize_runtime_parent
 exit /b !errorlevel!
 
 :choose_runtime_location

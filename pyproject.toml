@@ -1,6 +1,6 @@
 [project]
 name = "mtga-collection-reader"
-version = "5.2.3"
+version = "5.2.5"
 description = "Standalone MTG Arena collection archive and export tool"
 requires-python = ">=3.10"
 dependencies = ["requests>=2.31,<3"]
