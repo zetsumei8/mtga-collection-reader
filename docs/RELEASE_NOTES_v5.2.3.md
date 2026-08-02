@@ -1,4 +1,4 @@
-# MTGA Collection Reader 5.2.3
+# MTGA Collection Reader 5.2.5
 
 ## Standalone collection archive importer
 
@@ -22,7 +22,7 @@ Extract the release and run `install.bat`. Existing runtime data, snapshots, exp
 Run:
 
 ```powershell
-Get-FileHash .\MTGA_Collection_Reader_v5.2.3_Verified.zip -Algorithm SHA256
+Get-FileHash .\MTGA_Collection_Reader_v5.2.5_ReleaseReady.zip -Algorithm SHA256
 ```
 
 Compare it with the SHA-256 published alongside the release.
