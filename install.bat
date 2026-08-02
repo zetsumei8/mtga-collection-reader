@@ -12,7 +12,7 @@ set "PATCH_MODE=0"
 set "PATCH_TARGET_ARG="
 set "SKIP_ACTION_MENU=0"
 set "PATCH_RUNTIME=0"
-set "APP_VERSION=5.2.2"
+set "APP_VERSION=5.2.3"
 
 :parse_args
 if "%~1"=="" goto :args_done

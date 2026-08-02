@@ -1,4 +1,4 @@
-"""MTGA Collection Reader 5.2.2.
+"""MTGA Collection Reader 5.2.3.
 
 Normal use is one click: the app installs and starts an independent read-only
 Arena helper, reads the complete owned-card snapshot, saves it, and stops the
@@ -30,7 +30,7 @@ from daemon_provider import DaemonProviderError, MtgaDaemonProvider
 from provider_contract import CollectionSnapshot
 
 APP_NAME = "MTGA Collection Reader"
-APP_VERSION = "5.2.2"
+APP_VERSION = "5.2.3"
 DEFAULT_RAW_FOLDER = Path(r"G:\MTGA\MTGA_Data\Downloads\Raw")
 
 BG = "#10151D"

@@ -178,6 +178,7 @@ def test_helper_install(root: Path) -> None:
                         {
                             "name": daemon_provider.WINDOWS_ASSET_NAME,
                             "browser_download_url": "https://example.invalid/helper.zip",
+                            "digest": "sha256:" + __import__("hashlib").sha256(archive_bytes).hexdigest(),
                         }
                     ],
                 }
@@ -359,7 +360,7 @@ def main() -> int:
         test_mocked_daemon_snapshot(root / "mock")
         test_snapshot_store(root / "store")
         test_bridge_token_and_http(root / "bridge")
-    print("v5.2.2 validation: 9 test groups passed")
+    print("v5.2.3 validation: 9 test groups passed")
     return 0
 
 

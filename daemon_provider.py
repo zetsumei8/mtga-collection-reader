@@ -31,7 +31,8 @@ PINNED_DOWNLOAD_URL = (
     f"https://github.com/{UPSTREAM_REPOSITORY}/releases/download/"
     f"{PINNED_TAG}/{WINDOWS_ASSET_NAME}"
 )
-USER_AGENT = "MTGA-Collection-Reader/5.2.2"
+PINNED_SHA256 = "b50a40cf87fe8ad0b51c1b23227b9e1f5d182e0416b6d841ba2c07bdb806117f"
+USER_AGENT = "MTGA-Collection-Reader/5.2.3"
 MAX_HELPER_ARCHIVE_BYTES = 100 * 1024 * 1024
 MAX_HELPER_EXTRACTED_BYTES = 250 * 1024 * 1024
 
@@ -85,8 +86,13 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _release_asset(timeout: float = 12.0) -> tuple[str, str]:
-    """Return (tag, download_url), falling back to the tested pinned release."""
+def _release_asset(timeout: float = 12.0) -> tuple[str, str, str]:
+    """Return a release asset and its GitHub-published SHA-256 digest.
+
+    We deliberately reject a "latest" asset with no digest rather than
+    downloading an unverifiable executable. The known pinned release remains
+    available if GitHub metadata cannot be reached.
+    """
     try:
         response = requests.get(
             LATEST_RELEASE_API,
@@ -99,11 +105,12 @@ def _release_asset(timeout: float = 12.0) -> tuple[str, str]:
         for asset in payload.get("assets") or []:
             if str(asset.get("name")) == WINDOWS_ASSET_NAME:
                 url = str(asset.get("browser_download_url") or "")
-                if url:
-                    return tag, url
+                digest = str(asset.get("digest") or "").removeprefix("sha256:").casefold()
+                if url and len(digest) == 64 and all(char in "0123456789abcdef" for char in digest):
+                    return tag, url, digest
     except Exception:
         pass
-    return PINNED_TAG, PINNED_DOWNLOAD_URL
+    return PINNED_TAG, PINNED_DOWNLOAD_URL, PINNED_SHA256
 
 
 def _find_executable(root: Path) -> Optional[Path]:
@@ -163,7 +170,7 @@ def ensure_helper(data_dir: Path, reporter: Any = None) -> HelperInstall:
     except (OSError, ValueError, TypeError):
         pass
 
-    tag, download_url = _release_asset()
+    tag, download_url, expected_hash = _release_asset()
     install_root = tools_root / tag
     existing = _find_executable(install_root)
     if existing:
@@ -207,6 +214,11 @@ def ensure_helper(data_dir: Path, reporter: Any = None) -> HelperInstall:
                         raise DaemonProviderError("Downloaded helper archive is unexpectedly large.")
                     _call(reporter, "progress", written, max(total, written), "Downloading Arena helper")
         archive_hash = _sha256(archive)
+        if archive_hash.casefold() != expected_hash.casefold():
+            raise DaemonProviderError(
+                "Downloaded helper archive did not match the SHA-256 digest published by GitHub. "
+                "The helper was not installed."
+            )
         staging.mkdir(parents=True, exist_ok=True)
         _extract_archive_safely(archive, staging)
         executable = _find_executable(staging)
@@ -225,6 +237,7 @@ def ensure_helper(data_dir: Path, reporter: Any = None) -> HelperInstall:
                     "executable": str(executable),
                     "downloadUrl": download_url,
                     "sha256": archive_hash,
+                    "expectedSha256": expected_hash,
                     "installedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                     "sourceRepository": f"https://github.com/{UPSTREAM_REPOSITORY}",
                 },
