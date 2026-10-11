@@ -29,7 +29,7 @@ Your private data is kept separately from the application files:
 - Exports: `<runtime>\Exports`
 - Helper diagnostics: `<runtime>\Data\logs\mtga-memory-helper.log`
 
-The first automatic sync needs internet access to download the helper; later syncs reuse the local copy. Manual import remains available at all times.
+The first automatic sync needs internet access to download the pinned helper release 1.0.11.0. The reader verifies the archive, installed helper files, and executable against fixed SHA-256 values. It rechecks the cached helper before each sync and immediately before launch, and does not select newer helper releases automatically. A failed cache is preserved for diagnosis before a verified copy is installed. Manual import remains available at all times.
 
 ## Manual snapshot format
 

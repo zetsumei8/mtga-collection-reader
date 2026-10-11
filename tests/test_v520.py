@@ -3,11 +3,13 @@ from __future__ import annotations
 import io
 import sys
 import json
+import hashlib
 import tempfile
 import threading
 import urllib.error
 import urllib.request
 import zipfile
+from unittest import mock
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
@@ -139,10 +141,20 @@ def test_helper_identity_fallback(root: Path) -> None:
 
 
 def test_helper_install(root: Path) -> None:
+    root.mkdir(parents=True, exist_ok=True)
+    executable_bytes = b"fixture executable" * 40
     archive_buffer = io.BytesIO()
     with zipfile.ZipFile(archive_buffer, "w") as zipped:
-        zipped.writestr("bin/mtga-tracker-daemon.exe", b"fixture executable")
+        zipped.writestr("bin/mtga-tracker-daemon.exe", executable_bytes)
+        zipped.writestr("bin/helper.dll", b"fixture dependency")
     archive_bytes = archive_buffer.getvalue()
+    expected_root = root / "expected"
+    (expected_root / "bin").mkdir(parents=True)
+    (expected_root / "bin" / "mtga-tracker-daemon.exe").write_bytes(executable_bytes)
+    (expected_root / "bin" / "helper.dll").write_bytes(b"fixture dependency")
+    archive_hash = hashlib.sha256(archive_bytes).hexdigest()
+    tree_hash = daemon_provider._helper_tree_sha256(expected_root)
+    executable_hash = hashlib.sha256(executable_bytes).hexdigest()
 
     class FakeResponse:
         def __init__(self, payload=None, body=b""):
@@ -170,19 +182,7 @@ def test_helper_install(root: Path) -> None:
 
     def fake_get(url, **_kwargs):
         calls.append(url)
-        if url == daemon_provider.LATEST_RELEASE_API:
-            return FakeResponse(
-                {
-                    "tag_name": "1.0.test",
-                    "assets": [
-                        {
-                            "name": daemon_provider.WINDOWS_ASSET_NAME,
-                            "browser_download_url": "https://example.invalid/helper.zip",
-                            "digest": "sha256:" + __import__("hashlib").sha256(archive_bytes).hexdigest(),
-                        }
-                    ],
-                }
-            )
+        assert url == daemon_provider.PINNED_DOWNLOAD_URL, "an unpinned helper URL was requested"
         return FakeResponse(body=archive_bytes)
 
     old_name = daemon_provider.os.name
@@ -190,16 +190,81 @@ def test_helper_install(root: Path) -> None:
     daemon_provider.os.name = "nt"
     daemon_provider.requests.get = fake_get
     try:
-        install = ensure_helper(root)
-        assert install.tag == "1.0.test"
-        assert install.executable.is_file()
-        assert install.sha256
-        again = ensure_helper(root)
-        assert again.executable == install.executable
-        assert len(calls) >= 2  # release metadata + archive; marker reuse may still check metadata
+        tools_root = root / "tools" / "mtga-tracker-daemon"
+        tools_root.mkdir(parents=True)
+        external_exe = root / "other-version" / "mtga-tracker-daemon.exe"
+        external_exe.parent.mkdir()
+        external_exe.write_bytes(b"must not be trusted")
+        (tools_root / "current.json").write_text(
+            json.dumps({"tag": "1.0.12.0", "executable": str(external_exe)}),
+            encoding="utf-8",
+        )
+
+        with mock.patch.object(daemon_provider, "PINNED_ARCHIVE_SIZE", len(archive_bytes)), \
+             mock.patch.object(daemon_provider, "PINNED_SHA256", archive_hash), \
+             mock.patch.object(daemon_provider, "PINNED_TREE_SHA256", tree_hash), \
+             mock.patch.object(daemon_provider, "PINNED_EXECUTABLE_SIZE", len(executable_bytes)), \
+             mock.patch.object(daemon_provider, "PINNED_EXECUTABLE_SHA256", executable_hash):
+            install = ensure_helper(root)
+            assert install.tag == daemon_provider.PINNED_TAG == "1.0.11.0"
+            assert install.download_url == daemon_provider.PINNED_DOWNLOAD_URL
+            assert install.sha256 == archive_hash
+            assert install.executable.is_file()
+            assert calls == [daemon_provider.PINNED_DOWNLOAD_URL]
+
+            again = ensure_helper(root)
+            assert again.executable == install.executable
+            assert calls == [daemon_provider.PINNED_DOWNLOAD_URL]
+
+            install.executable.write_bytes(b"tampered executable")
+            repaired = ensure_helper(root)
+            assert repaired.executable == install.executable
+            assert repaired.executable.read_bytes() == executable_bytes
+            assert calls == [daemon_provider.PINNED_DOWNLOAD_URL] * 2
+
+        quarantined = list(tools_root.glob("1.0.11.0.rejected-*"))
+        assert len(quarantined) == 1
+        assert (quarantined[0] / "bin" / "mtga-tracker-daemon.exe").read_bytes() == b"tampered executable"
+        assert external_exe.read_bytes() == b"must not be trusted"
+        assert json.loads((tools_root / "current.json").read_text(encoding="utf-8"))["tag"] == "1.0.11.0"
     finally:
         daemon_provider.os.name = old_name
         daemon_provider.requests.get = old_get
+
+
+def test_launch_rehashes_helper_before_start(root: Path) -> None:
+    data_dir = root / "data"
+    install_root = daemon_provider._install_root(data_dir)
+    executable = install_root / daemon_provider.PINNED_EXECUTABLE
+    executable.parent.mkdir(parents=True)
+    executable.write_bytes(b"fixture executable")
+    dependency = executable.parent / "helper.dll"
+    dependency.write_bytes(b"fixture dependency")
+    tree_hash = daemon_provider._helper_tree_sha256(install_root)
+    executable_hash = hashlib.sha256(executable.read_bytes()).hexdigest()
+    dependency.write_bytes(b"tampered dependency")
+    install = HelperInstall(
+        daemon_provider.PINNED_TAG,
+        executable,
+        daemon_provider.PINNED_DOWNLOAD_URL,
+        daemon_provider.PINNED_SHA256,
+    )
+
+    with mock.patch.object(daemon_provider, "PINNED_TREE_SHA256", tree_hash), \
+         mock.patch.object(daemon_provider, "PINNED_EXECUTABLE_SIZE", len(b"fixture executable")), \
+         mock.patch.object(daemon_provider, "PINNED_EXECUTABLE_SHA256", executable_hash), \
+         mock.patch.object(daemon_provider.subprocess, "Popen") as popen:
+        process = daemon_provider.DaemonProcess(install, data_dir)
+        try:
+            try:
+                process.start()
+            except DaemonProviderError as exc:
+                assert "reviewed 1.0.11.0 release" in str(exc)
+            else:
+                raise AssertionError("a modified helper was started")
+            popen.assert_not_called()
+        finally:
+            process.session.close()
 
 
 def test_helper_archive_safety(root: Path) -> None:
@@ -356,11 +421,12 @@ def main() -> int:
         test_helper_payloads()
         test_helper_identity_fallback(root / "identity")
         test_helper_install(root / "helper")
+        test_launch_rehashes_helper_before_start(root / "launch")
         test_helper_archive_safety(root / "archive")
         test_mocked_daemon_snapshot(root / "mock")
         test_snapshot_store(root / "store")
         test_bridge_token_and_http(root / "bridge")
-    print("v5.2.5 validation: 9 test groups passed")
+    print("v5.2.5 validation: 10 test groups passed")
     return 0
 
 

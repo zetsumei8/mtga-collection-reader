@@ -10,9 +10,10 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import shutil
 import socket
+import stat
 import subprocess
+import tempfile
 import time
 import zipfile
 from dataclasses import dataclass
@@ -24,14 +25,18 @@ import requests
 from provider_contract import CollectionSnapshot, ProviderStatus, build_snapshot
 
 UPSTREAM_REPOSITORY = "frcaton/mtga-tracker-daemon"
-LATEST_RELEASE_API = f"https://api.github.com/repos/{UPSTREAM_REPOSITORY}/releases/latest"
 WINDOWS_ASSET_NAME = "mtga-tracker-daemon-Windows.zip"
 PINNED_TAG = "1.0.11.0"
 PINNED_DOWNLOAD_URL = (
     f"https://github.com/{UPSTREAM_REPOSITORY}/releases/download/"
     f"{PINNED_TAG}/{WINDOWS_ASSET_NAME}"
 )
+PINNED_ARCHIVE_SIZE = 33_956_616
 PINNED_SHA256 = "b50a40cf87fe8ad0b51c1b23227b9e1f5d182e0416b6d841ba2c07bdb806117f"
+PINNED_TREE_SHA256 = "5cdfd0a84f6d3cad6f2c6a42acbe3d482fb56f02d99a741a174f1e398a14a7c3"
+PINNED_EXECUTABLE = Path("bin") / "mtga-tracker-daemon.exe"
+PINNED_EXECUTABLE_SIZE = 152_064
+PINNED_EXECUTABLE_SHA256 = "4d2093155ca5499662d808c1509c72a3a252ddfcf6ec1efd3a3b436a01a81e81"
 USER_AGENT = "MTGA-Collection-Reader/5.2.5"
 MAX_HELPER_ARCHIVE_BYTES = 100 * 1024 * 1024
 MAX_HELPER_EXTRACTED_BYTES = 250 * 1024 * 1024
@@ -86,41 +91,145 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _release_asset(timeout: float = 12.0) -> tuple[str, str, str]:
-    """Return a release asset and its GitHub-published SHA-256 digest.
-
-    We deliberately reject a "latest" asset with no digest rather than
-    downloading an unverifiable executable. The known pinned release remains
-    available if GitHub metadata cannot be reached.
-    """
+def _is_reparse_path(path: Path) -> bool:
+    """Detect symlinks and Windows reparse points without following them."""
     try:
-        response = requests.get(
-            LATEST_RELEASE_API,
-            headers={"User-Agent": USER_AGENT, "Accept": "application/vnd.github+json"},
-            timeout=timeout,
+        info = path.lstat()
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+    attributes = int(getattr(info, "st_file_attributes", 0))
+    return stat.S_ISLNK(info.st_mode) or bool(attributes & 0x400)  # FILE_ATTRIBUTE_REPARSE_POINT
+
+
+def _helper_tree_sha256(root: Path) -> str:
+    """Hash all helper files and relative paths, rejecting links and special files."""
+    root = Path(root)
+    if _is_reparse_path(root) or not root.is_dir():
+        raise DaemonProviderError("The installed Arena helper folder is missing or unsafe.")
+
+    entries: list[tuple[bytes, bytes]] = []
+    for current, directories, files in os.walk(root, topdown=True, followlinks=False):
+        current_path = Path(current)
+        for name in directories:
+            if _is_reparse_path(current_path / name):
+                raise DaemonProviderError("The installed Arena helper contains a linked folder.")
+        for name in files:
+            path = current_path / name
+            if _is_reparse_path(path):
+                raise DaemonProviderError("The installed Arena helper contains a linked file.")
+            try:
+                info = path.stat(follow_symlinks=False)
+                if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                    raise DaemonProviderError("The installed Arena helper contains a non-regular file.")
+                relative = path.relative_to(root).as_posix().encode("utf-8")
+                entries.append((relative, bytes.fromhex(_sha256(path))))
+            except OSError as exc:
+                raise DaemonProviderError("The installed Arena helper could not be inspected safely.") from exc
+
+    digest = hashlib.sha256()
+    for relative, file_digest in sorted(entries):
+        digest.update(relative + b"\0" + file_digest + b"\n")
+    return digest.hexdigest()
+
+
+def _verify_helper_directory(root: Path) -> Path:
+    """Return the pinned executable only when the complete installed tree matches."""
+    root = Path(root)
+    executable = root / PINNED_EXECUTABLE
+    if _helper_tree_sha256(root) != PINNED_TREE_SHA256:
+        raise DaemonProviderError(
+            "The installed Arena helper does not match the reviewed 1.0.11.0 release and will not be started."
         )
-        response.raise_for_status()
-        payload = response.json()
-        tag = str(payload.get("tag_name") or PINNED_TAG).removeprefix("v")
-        for asset in payload.get("assets") or []:
-            if str(asset.get("name")) == WINDOWS_ASSET_NAME:
-                url = str(asset.get("browser_download_url") or "")
-                digest = str(asset.get("digest") or "").removeprefix("sha256:").casefold()
-                if url and len(digest) == 64 and all(char in "0123456789abcdef" for char in digest):
-                    return tag, url, digest
-    except Exception:
-        pass
-    return PINNED_TAG, PINNED_DOWNLOAD_URL, PINNED_SHA256
+    try:
+        info = executable.stat(follow_symlinks=False)
+        if (
+            not stat.S_ISREG(info.st_mode)
+            or info.st_size != PINNED_EXECUTABLE_SIZE
+            or _sha256(executable) != PINNED_EXECUTABLE_SHA256
+        ):
+            raise DaemonProviderError(
+                "The installed Arena helper executable failed its integrity check and will not be started."
+            )
+    except OSError as exc:
+        raise DaemonProviderError("The pinned Arena helper executable is missing or unreadable.") from exc
+    return executable
 
 
-def _find_executable(root: Path) -> Optional[Path]:
-    direct = root / "bin" / "mtga-tracker-daemon.exe"
-    if direct.is_file():
-        return direct
-    for candidate in root.rglob("mtga-tracker-daemon.exe"):
-        if candidate.is_file():
-            return candidate
-    return None
+def _install_root(data_dir: Path) -> Path:
+    return Path(data_dir) / "tools" / "mtga-tracker-daemon" / PINNED_TAG
+
+
+def _tools_root(data_dir: Path) -> Path:
+    return Path(data_dir) / "tools" / "mtga-tracker-daemon"
+
+
+def _ensure_tools_root(data_dir: Path) -> Path:
+    tools_parent = Path(data_dir) / "tools"
+    tools_root = _tools_root(data_dir)
+    if _is_reparse_path(tools_parent) or _is_reparse_path(tools_root):
+        raise DaemonProviderError("The Arena helper cache folder is linked or otherwise unsafe.")
+    tools_root.mkdir(parents=True, exist_ok=True)
+    if _is_reparse_path(tools_parent) or _is_reparse_path(tools_root) or not tools_root.is_dir():
+        raise DaemonProviderError("The Arena helper cache folder is linked or otherwise unsafe.")
+    return tools_root
+
+
+def _write_install_marker(tools_root: Path, executable: Path, reporter: Any) -> None:
+    marker_path = tools_root / "current.json"
+    temp_path = tools_root / f".current-{os.getpid()}-{time.time_ns()}.tmp"
+    try:
+        marker = {
+            "tag": PINNED_TAG,
+            "executable": str(executable),
+            "downloadUrl": PINNED_DOWNLOAD_URL,
+            "sha256": PINNED_SHA256,
+            "expectedSha256": PINNED_SHA256,
+            "treeSha256": PINNED_TREE_SHA256,
+            "installedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "sourceRepository": f"https://github.com/{UPSTREAM_REPOSITORY}",
+        }
+        with temp_path.open("x", encoding="utf-8") as handle:
+            json.dump(marker, handle, indent=2)
+        temp_path.replace(marker_path)
+    except OSError as exc:
+        _call(reporter, "log", f"Could not refresh helper metadata: {exc}", "WARN")
+    finally:
+        try:
+            temp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def _quarantine_install(install_root: Path, reporter: Any) -> None:
+    if not install_root.exists() and not install_root.is_symlink():
+        return
+    quarantine = install_root.with_name(
+        f"{install_root.name}.rejected-{time.time_ns()}-{os.getpid()}"
+    )
+    try:
+        install_root.rename(quarantine)
+    except OSError as exc:
+        raise DaemonProviderError(
+            "The cached Arena helper failed verification and could not be preserved safely. "
+            "It will not be started."
+        ) from exc
+    _call(reporter, "log", f"Preserved a modified helper cache at {quarantine}.", "WARN")
+
+
+def verify_helper_for_launch(data_dir: Path, install: HelperInstall) -> HelperInstall:
+    """Re-hash the expected pinned install immediately before process creation."""
+    _ensure_tools_root(data_dir)
+    executable = _verify_helper_directory(_install_root(data_dir))
+    try:
+        requested_path = install.executable.resolve(strict=True)
+        expected_path = executable.resolve(strict=True)
+    except OSError as exc:
+        raise DaemonProviderError("The selected Arena helper path is missing or unreadable.") from exc
+    if install.tag != PINNED_TAG or requested_path != expected_path:
+        raise DaemonProviderError("The selected Arena helper is not the pinned release and will not be started.")
+    return HelperInstall(PINNED_TAG, executable, PINNED_DOWNLOAD_URL, PINNED_SHA256)
 
 
 def _extract_archive_safely(archive: Path, destination: Path) -> None:
@@ -154,99 +263,87 @@ def ensure_helper(data_dir: Path, reporter: Any = None) -> HelperInstall:
     if os.name != "nt":
         raise DaemonProviderError("Automatic MTGA collection sync requires Windows.")
     reporter = reporter or _NullReporter()
-    tools_root = data_dir / "tools" / "mtga-tracker-daemon"
-    marker_path = tools_root / "current.json"
-
+    tools_root = _ensure_tools_root(data_dir)
+    install_root = _install_root(data_dir)
     try:
-        marker = json.loads(marker_path.read_text(encoding="utf-8"))
-        executable = Path(str(marker.get("executable", "")))
-        if executable.is_file():
-            return HelperInstall(
-                tag=str(marker.get("tag", "unknown")),
-                executable=executable,
-                download_url=str(marker.get("downloadUrl", "")),
-                sha256=str(marker.get("sha256", "")),
-            )
-    except (OSError, ValueError, TypeError):
-        pass
+        executable = _verify_helper_directory(install_root)
+    except DaemonProviderError:
+        executable = None
+    if executable is not None:
+        _write_install_marker(tools_root, executable, reporter)
+        _call(reporter, "log", f"Verified pinned Arena helper {PINNED_TAG} before use.")
+        return HelperInstall(PINNED_TAG, executable, PINNED_DOWNLOAD_URL, PINNED_SHA256)
 
-    tag, download_url, expected_hash = _release_asset()
-    install_root = tools_root / tag
-    existing = _find_executable(install_root)
-    if existing:
-        result = HelperInstall(tag, existing, download_url, "")
-        marker_path.parent.mkdir(parents=True, exist_ok=True)
-        marker_path.write_text(
-            json.dumps(
-                {"tag": tag, "executable": str(existing), "downloadUrl": download_url, "sha256": ""},
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
-        return result
-
-    _call(reporter, "status", "INSTALLING READ-ONLY ARENA HELPER", "First sync only; downloading the upstream Windows release.")
-    _call(reporter, "log", f"Downloading unmodified helper {tag} from {UPSTREAM_REPOSITORY}.")
-    tools_root.mkdir(parents=True, exist_ok=True)
-    archive = tools_root / f"{WINDOWS_ASSET_NAME}.{os.getpid()}.tmp"
-    staging = tools_root / f"staging-{os.getpid()}"
-    shutil.rmtree(staging, ignore_errors=True)
+    _call(
+        reporter,
+        "status",
+        "INSTALLING READ-ONLY ARENA HELPER",
+        f"First sync only; downloading the pinned upstream {PINNED_TAG} release.",
+    )
+    _call(reporter, "log", f"Downloading pinned helper {PINNED_TAG} from {UPSTREAM_REPOSITORY}.")
     try:
-        with requests.get(
-            download_url,
-            headers={"User-Agent": USER_AGENT, "Accept": "application/octet-stream"},
-            timeout=(15, 180),
-            stream=True,
-        ) as response:
-            response.raise_for_status()
-            total = int(response.headers.get("Content-Length") or 0)
-            if total > MAX_HELPER_ARCHIVE_BYTES:
-                raise DaemonProviderError("Downloaded helper archive is unexpectedly large.")
-            written = 0
-            with archive.open("wb") as handle:
-                for chunk in response.iter_content(chunk_size=1024 * 512):
-                    _call(reporter, "check_cancelled")
-                    if not chunk:
-                        continue
-                    handle.write(chunk)
-                    written += len(chunk)
-                    if written > MAX_HELPER_ARCHIVE_BYTES:
-                        raise DaemonProviderError("Downloaded helper archive is unexpectedly large.")
-                    _call(reporter, "progress", written, max(total, written), "Downloading Arena helper")
-        archive_hash = _sha256(archive)
-        if archive_hash.casefold() != expected_hash.casefold():
-            raise DaemonProviderError(
-                "Downloaded helper archive did not match the SHA-256 digest published by GitHub. "
-                "The helper was not installed."
-            )
-        staging.mkdir(parents=True, exist_ok=True)
-        _extract_archive_safely(archive, staging)
-        executable = _find_executable(staging)
-        if executable is None:
-            raise DaemonProviderError("The helper download did not contain mtga-tracker-daemon.exe.")
-        shutil.rmtree(install_root, ignore_errors=True)
-        staging.replace(install_root)
-        executable = _find_executable(install_root)
-        if executable is None:
-            raise DaemonProviderError("The helper executable disappeared during installation.")
-        result = HelperInstall(tag, executable, download_url, archive_hash)
-        marker_path.write_text(
-            json.dumps(
-                {
-                    "tag": tag,
-                    "executable": str(executable),
-                    "downloadUrl": download_url,
-                    "sha256": archive_hash,
-                    "expectedSha256": expected_hash,
-                    "installedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                    "sourceRepository": f"https://github.com/{UPSTREAM_REPOSITORY}",
-                },
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
-        _call(reporter, "log", f"Installed Arena helper {tag}; SHA-256 {archive_hash}.")
-        return result
+        with tempfile.TemporaryDirectory(prefix=".helper-install-", dir=str(tools_root)) as temporary:
+            staging_root = Path(temporary)
+            archive = staging_root / WINDOWS_ASSET_NAME
+            payload = staging_root / "payload"
+            with requests.get(
+                PINNED_DOWNLOAD_URL,
+                headers={"User-Agent": USER_AGENT, "Accept": "application/octet-stream"},
+                timeout=(15, 180),
+                stream=True,
+            ) as response:
+                response.raise_for_status()
+                total = int(response.headers.get("Content-Length") or 0)
+                if total and total != PINNED_ARCHIVE_SIZE:
+                    raise DaemonProviderError("Pinned helper archive size did not match the reviewed release.")
+                if total > MAX_HELPER_ARCHIVE_BYTES:
+                    raise DaemonProviderError("Downloaded helper archive is unexpectedly large.")
+                written = 0
+                with archive.open("xb") as handle:
+                    for chunk in response.iter_content(chunk_size=1024 * 512):
+                        _call(reporter, "check_cancelled")
+                        if not chunk:
+                            continue
+                        handle.write(chunk)
+                        written += len(chunk)
+                        if written > MAX_HELPER_ARCHIVE_BYTES:
+                            raise DaemonProviderError("Downloaded helper archive is unexpectedly large.")
+                        _call(reporter, "progress", written, max(total, written), "Downloading Arena helper")
+            if written != PINNED_ARCHIVE_SIZE:
+                raise DaemonProviderError("Pinned helper archive size did not match the reviewed release.")
+            archive_hash = _sha256(archive)
+            if archive_hash.casefold() != PINNED_SHA256.casefold():
+                raise DaemonProviderError(
+                    "Downloaded helper archive did not match the fixed SHA-256 digest for 1.0.11.0. "
+                    "The helper was not installed."
+                )
+            payload.mkdir()
+            _extract_archive_safely(archive, payload)
+            _verify_helper_directory(payload)
+
+            if install_root.exists() or install_root.is_symlink():
+                try:
+                    existing_executable = _verify_helper_directory(install_root)
+                except DaemonProviderError:
+                    _quarantine_install(install_root, reporter)
+                else:
+                    _write_install_marker(tools_root, existing_executable, reporter)
+                    return HelperInstall(PINNED_TAG, existing_executable, PINNED_DOWNLOAD_URL, PINNED_SHA256)
+            try:
+                payload.replace(install_root)
+            except OSError as exc:
+                # A second app instance may have installed the same pinned copy.
+                try:
+                    existing_executable = _verify_helper_directory(install_root)
+                except DaemonProviderError:
+                    raise DaemonProviderError("Could not install the verified Arena helper safely.") from exc
+                _write_install_marker(tools_root, existing_executable, reporter)
+                return HelperInstall(PINNED_TAG, existing_executable, PINNED_DOWNLOAD_URL, PINNED_SHA256)
+
+        executable = _verify_helper_directory(install_root)
+        _write_install_marker(tools_root, executable, reporter)
+        _call(reporter, "log", f"Installed and verified Arena helper {PINNED_TAG}; SHA-256 {PINNED_SHA256}.")
+        return HelperInstall(PINNED_TAG, executable, PINNED_DOWNLOAD_URL, PINNED_SHA256)
     except requests.RequestException as exc:
         raise DaemonProviderError(
             "Could not download the read-only Arena helper. Check internet access and retry, "
@@ -254,13 +351,6 @@ def ensure_helper(data_dir: Path, reporter: Any = None) -> HelperInstall:
         ) from exc
     except (OSError, zipfile.BadZipFile) as exc:
         raise DaemonProviderError(f"Could not install the Arena helper: {exc}") from exc
-    finally:
-        try:
-            archive.unlink(missing_ok=True)
-        except OSError:
-            pass
-        if staging.exists():
-            shutil.rmtree(staging, ignore_errors=True)
 
 
 class DaemonProcess:
@@ -276,6 +366,7 @@ class DaemonProcess:
         self.session.trust_env = False
 
     def start(self) -> Dict[str, Any]:
+        self.install = verify_helper_for_launch(self.data_dir, self.install)
         log_dir = self.data_dir / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         log_path = log_dir / "mtga-memory-helper.log"
@@ -438,7 +529,8 @@ class MtgaDaemonProvider:
             return ProviderStatus(False, "mtga-memory", str(exc))
 
     def read_collection(self) -> CollectionSnapshot:
-        install = self.install or ensure_helper(self.data_dir, self.reporter)
+        install = ensure_helper(self.data_dir, self.reporter)
+        self.install = install
         started = time.monotonic()
         _call(self.reporter, "status", "READING YOUR ARENA COLLECTION", "Arena remains untouched; the helper uses read-only process access.")
         with DaemonProcess(install, self.data_dir, self.reporter) as helper:

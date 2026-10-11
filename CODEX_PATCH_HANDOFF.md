@@ -20,11 +20,11 @@ No Collection scrolling, screenshots, OCR, anchor cards, or Player.log collectio
 
 `daemon_provider.py`:
 
-- Queries the latest GitHub release for `frcaton/mtga-tracker-daemon`.
-- Falls back to pinned release `1.0.11.0`.
-- Downloads `mtga-tracker-daemon-Windows.zip` on first use.
-- Extracts it under the Reader Data folder.
-- Stores source URL and SHA-256 in `current.json`.
+- Uses only the reviewed `1.0.11.0` release of `frcaton/mtga-tracker-daemon`; it never queries the moving `latest` release.
+- Downloads `mtga-tracker-daemon-Windows.zip` on first use and verifies its fixed size and SHA-256 digest.
+- Extracts the release under the Reader Data folder and checks the complete file tree and executable against fixed SHA-256 values.
+- Re-verifies cached helper files on each sync and immediately before launch; cached `current.json` metadata does not select the executable.
+- Preserves a cache that fails verification in a uniquely named quarantine folder before replacing it.
 - Starts the helper on a random localhost port.
 - Polls `/status`.
 - Reads `/cards`.
@@ -69,8 +69,6 @@ If `/cards` fails after an Arena update:
 
 ## Future hardening
 
-- Cache latest-release checks for 24 hours.
-- Verify an upstream-published digest/signature when available.
-- Add a visible helper version/update control.
-- Add token-authenticated proxying only if the helper must remain running; current sync should remain short-lived.
+- Adopt a newer helper only in a Reader release after compatibility and security review, then update the pinned archive, executable, and tree hashes together.
+- Add a visible helper version/update control only if it retains the same explicit release review and integrity checks.
 - Add a Windows integration test harness that substitutes a fixture daemon for deterministic UI testing.
