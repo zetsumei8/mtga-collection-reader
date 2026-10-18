@@ -21,7 +21,9 @@ The reader never asks for a Wizards password, changes Arena files, writes to Are
 1. Download a release and extract it to a normal folder.
 2. Run `install.bat` and choose a runtime location.
 3. Open MTG Arena, sign in, and wait for the Home screen.
-4. Run `run_reader.bat`, then click **Get My MTGA Collection**.
+4. Run `run_reader.bat`, then click **Sync collection**.
+
+The desktop interface is rendered locally with Qt WebEngine. The app does not load remote pages or upload your collection.
 
 Your private data is kept separately from the application files:
 
@@ -29,7 +31,7 @@ Your private data is kept separately from the application files:
 - Exports: `<runtime>\Exports`
 - Helper diagnostics: `<runtime>\Data\logs\mtga-memory-helper.log`
 
-The first automatic sync needs internet access to download the helper; later syncs reuse the local copy. Manual import remains available at all times.
+The first automatic sync needs internet access to download the pinned helper release 1.0.11.0. The reader verifies the archive, installed helper files, and executable against fixed SHA-256 values. It rechecks the cached helper before each sync and immediately before launch, and does not select newer helper releases automatically. A failed cache is preserved for diagnosis before a verified copy is installed. Manual import remains available at all times.
 
 ## Manual snapshot format
 
@@ -55,6 +57,8 @@ It is disabled until you start it and exposes no Arena credentials or process da
 ## Development
 
 Requires 64-bit CPython 3.10+.
+
+Building the Windows Qt WebEngine package uses the isolated Python 3.13 environment and the pinned versions in `build_requirements.txt`.
 
 ```powershell
 python -m pip install -r requirements.txt

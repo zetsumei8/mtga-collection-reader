@@ -129,7 +129,7 @@ echo Updating installer tools...
 if errorlevel 1 goto :failed
 
 echo.
-echo Installing or updating the small runtime dependency...
+echo Installing or updating the reader and desktop UI dependencies...
 "%APP_PYTHON%" -m pip install --upgrade --prefer-binary -r "%CD%\requirements.txt"
 if errorlevel 1 goto :failed
 
@@ -137,10 +137,10 @@ echo.
 echo Verifying the complete app...
 set "MTGA_READER_DATA_DIR=%DATA_DIR%"
 set "MTGA_READER_OUTPUT_DIR=%EXPORT_DIR%"
-"%APP_PYTHON%" -c "import requests; import collection_store, provider_contract, daemon_provider, manual_import, bridge_service; print('One-click Arena sync, manual fallback, local bridge, and SQLite components are ready.')"
+"%APP_PYTHON%" -c "import requests, PySide6.QtWebEngineWidgets, PySide6.QtWebChannel; import collection_store, provider_contract, daemon_provider, manual_import, bridge_service, web_ui; print('Desktop UI, one-click Arena sync, manual fallback, local bridge, and SQLite components are ready.')"
 if errorlevel 1 goto :failed
 
-"%APP_PYTHON%" -m py_compile "%CD%\mtg.py" "%CD%\daemon_provider.py" "%CD%\collection_store.py" "%CD%\card_database.py" "%CD%\exports.py" "%CD%\provider_contract.py" "%CD%\manual_import.py" "%CD%\bridge_service.py"
+"%APP_PYTHON%" -m py_compile "%CD%\mtg.py" "%CD%\web_ui.py" "%CD%\daemon_provider.py" "%CD%\collection_store.py" "%CD%\card_database.py" "%CD%\exports.py" "%CD%\provider_contract.py" "%CD%\manual_import.py" "%CD%\bridge_service.py"
 if errorlevel 1 goto :failed
 
 >"%CD%\installed_version.txt" echo %APP_VERSION%

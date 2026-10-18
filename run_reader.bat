@@ -12,7 +12,7 @@ set "APP_PYTHONW=%RUNTIME_ROOT%\.venv\Scripts\pythonw.exe"
 set "MTGA_READER_DATA_DIR=%RUNTIME_ROOT%\Data"
 set "MTGA_READER_OUTPUT_DIR=%RUNTIME_ROOT%\Exports"
 set "PIP_CACHE_DIR=%RUNTIME_ROOT%\Package Cache"
-set "CHECK=import requests, collection_store, provider_contract, daemon_provider, manual_import, bridge_service"
+set "CHECK=import requests, PySide6.QtWebEngineWidgets, PySide6.QtWebChannel, collection_store, provider_contract, daemon_provider, manual_import, bridge_service, web_ui"
 
 if not exist "%APP_PYTHON%" goto :repair
 if not exist "%APP_PYTHONW%" goto :repair

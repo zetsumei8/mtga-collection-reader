@@ -1,5 +1,11 @@
 # Changes
 
+## 5.2.5 hardening update
+
+- Pinned automatic sync to the reviewed `mtga-tracker-daemon` 1.0.11.0 release instead of selecting the moving GitHub `latest` release.
+- Verify the fixed archive digest, complete installed helper file tree, and executable hash before use and immediately before launch.
+- Ignore cached version metadata for executable selection and preserve any helper cache that fails verification for diagnosis.
+
 ## 5.2.0
 
 - Replaced screenshot/anchor heuristic memory scanning with the maintained `mtga-tracker-daemon` collection endpoint.
