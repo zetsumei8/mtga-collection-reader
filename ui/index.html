@@ -48,9 +48,9 @@
         </header>
 
         <section class="metric-row" aria-label="Collection totals">
-          <div class="metric-item"><div class="metric-value" id="ownedCopies">—</div><div class="metric-label">Owned copies</div></div>
-          <div class="metric-item"><div class="metric-value" id="uniqueCards">—</div><div class="metric-label">Unique cards</div></div>
-          <div class="metric-item"><div class="metric-value" id="reviewCount">—</div><div class="metric-label">Open review items</div></div>
+          <button type="button" class="metric-item" id="metricOwned" data-metric="all" aria-label="Browse owned copies in the card library"><span class="metric-value" id="ownedCopies">—</span><span class="metric-label">Owned copies</span></button>
+          <button type="button" class="metric-item" id="metricUnique" data-metric="all" aria-label="Browse unique cards in the card library"><span class="metric-value" id="uniqueCards">—</span><span class="metric-label">Unique cards</span></button>
+          <button type="button" class="metric-item" id="metricReview" data-metric="review" aria-label="Browse cards needing review"><span class="metric-value" id="reviewCount">—</span><span class="metric-label">Open review items</span></button>
         </section>
 
         <section class="sync-hero" id="syncHero" aria-label="Capture your Arena collection">
@@ -58,8 +58,8 @@
           <div class="hero-body">
             <div class="hero-copy">
               <div class="hero-kicker"><span class="kicker-led"></span><span>Private collection</span></div>
-              <h2>Every card.<br><em>One local archive.</em></h2>
-              <p>Sync once, then search, review, and export your Arena collection from this PC.</p>
+              <h2>Refresh your<br><em>archive.</em></h2>
+              <p>Capture the collection open in Arena, then review or export a saved copy.</p>
               <div class="hero-actions"><button class="button button-primary" id="syncButton"><span class="button-label">Sync collection</span><span class="button-arrow" aria-hidden="true">↗</span></button><button class="button button-cancel" id="cancelButton" hidden>Cancel sync</button></div>
               <div class="hero-hint" id="syncHint">Arena must be open, signed in, and at the Home screen.</div>
             </div>

@@ -344,6 +344,14 @@
 
   function bindUi() {
     document.querySelectorAll(".nav-item").forEach((button) => button.addEventListener("click", () => showPage(button.dataset.page)));
+    document.querySelectorAll(".metric-item").forEach((button) => button.addEventListener("click", () => {
+      state.reviewOnly = button.dataset.metric === "review";
+      state.search = "";
+      state.offset = 0;
+      byId("cardSearch").value = "";
+      byId("clearSearch").hidden = true;
+      showPage("collection");
+    }));
     byId("syncButton").addEventListener("click", () => safely(async () => {
       const saved = await call("saveSettings", byId("rawPath").value, byId("exportPath").value);
       if (!saved) return;
