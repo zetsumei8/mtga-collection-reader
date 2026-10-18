@@ -8,6 +8,7 @@ required. Manual JSON remains the permanent fallback.
 from __future__ import annotations
 
 import json
+import math
 import os
 import queue
 import subprocess
@@ -185,8 +186,11 @@ class App(tk.Tk):
         style.configure("Muted.TLabel", background=BG, foreground=MUTED)
         style.configure("Card.TLabel", background=PANEL, foreground=TEXT)
         style.configure("CardMuted.TLabel", background=PANEL, foreground=MUTED)
-        style.configure("Title.TLabel", background=BG, foreground=TEXT, font=("Segoe UI", 25, "bold"))
-        style.configure("Metric.TLabel", background=PANEL, foreground=TEXT, font=("Segoe UI", 21, "bold"))
+        style.configure("Hero.TLabel", background="#121B20", foreground=TEXT)
+        style.configure("HeroMuted.TLabel", background="#121B20", foreground="#A7B8B4")
+        style.configure("Manual.TLabel", background=BG, foreground=TEXT)
+        style.configure("Title.TLabel", background=BG, foreground=TEXT, font=("Segoe UI", 27, "bold"))
+        style.configure("Metric.TLabel", background=BG, foreground=TEXT, font=("Segoe UI", 22, "bold"))
         style.configure("TButton", background=PANEL_2, foreground=TEXT, padding=(12, 9), borderwidth=0, relief="flat", font=("Segoe UI", 9, "bold"))
         style.map("TButton", background=[("disabled", PANEL), ("pressed", "#243846"), ("active", "#26394A")], foreground=[("disabled", "#687887"), ("active", TEXT)])
         style.configure("Accent.TButton", background=ACCENT, foreground="#09201D", padding=(16, 11), borderwidth=0, relief="flat", font=("Segoe UI", 10, "bold"))
@@ -206,63 +210,73 @@ class App(tk.Tk):
         style.configure("Horizontal.TProgressbar", background=ACCENT, troughcolor=PANEL_2, bordercolor=PANEL_2, lightcolor=ACCENT, darkcolor=ACCENT)
 
     def _build_shell(self) -> None:
-        sidebar = tk.Frame(self, bg=SIDEBAR, width=218)
+        sidebar = tk.Frame(self, bg=SIDEBAR, width=224)
         sidebar.pack(side="left", fill="y")
         sidebar.pack_propagate(False)
         brand = tk.Frame(sidebar, bg=SIDEBAR)
-        brand.pack(fill="x", padx=20, pady=(22, 24))
-        mark = tk.Canvas(brand, width=38, height=38, bg=SIDEBAR, highlightthickness=0)
-        mark.pack(side="left", padx=(0, 11))
-        mark.create_polygon(19, 2, 35, 11, 35, 27, 19, 36, 3, 27, 3, 11, fill="#17342F", outline=ACCENT, width=1)
-        mark.create_polygon(19, 8, 27, 19, 19, 30, 11, 19, fill=ACCENT, outline="")
+        brand.pack(fill="x", padx=20, pady=(23, 25))
+        mark = tk.Canvas(brand, width=40, height=40, bg=SIDEBAR, highlightthickness=0)
+        mark.pack(side="left", padx=(0, 12))
+        mark.create_oval(2, 2, 38, 38, fill="#14251F", outline="#35564B", width=1)
+        mark.create_polygon(20, 7, 30, 20, 20, 33, 10, 20, fill=ACCENT, outline="")
+        mark.create_oval(17, 17, 23, 23, fill="#E4FFF5", outline="")
         brand_copy = tk.Frame(brand, bg=SIDEBAR)
         brand_copy.pack(side="left", fill="y")
-        tk.Label(brand_copy, text="MTGA", bg=SIDEBAR, fg=TEXT, font=("Segoe UI", 16, "bold")).pack(anchor="w")
-        tk.Label(brand_copy, text="COLLECTION VAULT", bg=SIDEBAR, fg=MUTED, font=("Segoe UI", 7, "bold")).pack(anchor="w", pady=(1, 0))
-        tk.Frame(sidebar, bg=BORDER, height=1).pack(fill="x", padx=18)
-        tk.Label(sidebar, text="WORKSPACE", bg=SIDEBAR, fg="#718394", font=("Segoe UI", 8, "bold")).pack(anchor="w", padx=20, pady=(20, 8))
+        tk.Label(brand_copy, text="ARENA", bg=SIDEBAR, fg=TEXT, font=("Segoe UI", 15, "bold")).pack(anchor="w")
+        tk.Label(brand_copy, text="COLLECTION READER", bg=SIDEBAR, fg="#82949D", font=("Segoe UI", 7, "bold")).pack(anchor="w", pady=(2, 0))
+        tk.Frame(sidebar, bg="#202C34", height=1).pack(fill="x", padx=19)
+        tk.Label(sidebar, text="LIBRARY", bg=SIDEBAR, fg="#667A83", font=("Segoe UI", 8, "bold")).pack(anchor="w", padx=21, pady=(23, 9))
         self.nav_buttons: Dict[str, tk.Button] = {}
         self.nav_indicators: Dict[str, tk.Frame] = {}
-        for key, label, icon in (("scan", "Sync", "◉"), ("collection", "Collection", "▤"), ("history", "Snapshots", "↻"), ("settings", "Settings", "⚙")):
-            row = tk.Frame(sidebar, bg=SIDEBAR, height=44)
-            row.pack(fill="x", padx=10, pady=2)
+        self.nav_rows: Dict[str, tk.Frame] = {}
+        self.nav_icons: Dict[str, tk.Canvas] = {}
+        for key, label in (("scan", "Sync collection"), ("collection", "Card library"), ("history", "Snapshots"), ("settings", "Settings")):
+            row = tk.Frame(sidebar, bg=SIDEBAR, height=46)
+            row.pack(fill="x", padx=10, pady=3)
             row.pack_propagate(False)
             indicator = tk.Frame(row, bg=SIDEBAR, width=3)
             indicator.pack(side="left", fill="y")
+            icon = tk.Canvas(row, width=26, height=26, bg=SIDEBAR, highlightthickness=0)
+            icon.pack(side="left", padx=(12, 6))
+            self._paint_nav_icon(icon, key, MUTED)
             button = tk.Button(
-                row, text=f"{icon}   {label}", command=lambda page=key: self._show_page(page), bg=SIDEBAR, fg=MUTED,
-                activebackground=PANEL_2, activeforeground=TEXT, bd=0, relief="flat", anchor="w", padx=14,
-                pady=10, font=("Segoe UI", 10, "bold"), cursor="hand2", highlightthickness=0,
+                row, text=label, command=lambda page=key: self._show_page(page), bg=SIDEBAR, fg=MUTED,
+                activebackground=PANEL_2, activeforeground=TEXT, bd=0, relief="flat", anchor="w", padx=4,
+                pady=10, font=("Segoe UI", 9, "bold"), cursor="hand2", highlightthickness=0,
             )
             button.pack(side="left", fill="both", expand=True)
             button.bind("<Enter>", lambda _event, page=key: self._set_nav_hover(page, True))
             button.bind("<Leave>", lambda _event, page=key: self._set_nav_hover(page, False))
             self.nav_buttons[key] = button
             self.nav_indicators[key] = indicator
+            self.nav_rows[key] = row
+            self.nav_icons[key] = icon
 
-        tk.Frame(sidebar, bg=BORDER, height=1).pack(fill="x", padx=18, pady=(18, 0))
-        status_card = tk.Frame(sidebar, bg=PANEL, highlightthickness=1, highlightbackground=BORDER)
-        status_card.pack(side="bottom", fill="x", padx=12, pady=(12, 10))
-        status_head = tk.Frame(status_card, bg=PANEL)
-        status_head.pack(fill="x", padx=12, pady=(11, 2))
-        self.arena_dot = tk.Canvas(status_head, width=11, height=11, bg=PANEL, highlightthickness=0)
+        tk.Frame(sidebar, bg="#202C34", height=1).pack(fill="x", padx=19, pady=(18, 13))
+        status_head = tk.Frame(sidebar, bg=SIDEBAR)
+        status_head.pack(side="bottom", fill="x", padx=20, pady=(15, 4))
+        self.arena_dot = tk.Canvas(status_head, width=12, height=12, bg=SIDEBAR, highlightthickness=0)
         self.arena_dot.pack(side="left", padx=(0, 8))
-        self.arena_dot.create_oval(2, 2, 9, 9, fill=WARN, outline="")
-        self.arena_status_label = tk.Label(status_head, text="CHECKING ARENA", bg=PANEL, fg=MUTED, font=("Segoe UI", 8, "bold"), anchor="w")
+        self.arena_dot.create_oval(2, 2, 10, 10, fill=WARN, outline="")
+        self.arena_status_label = tk.Label(status_head, text="CHECKING ARENA", bg=SIDEBAR, fg=MUTED, font=("Segoe UI", 8, "bold"), anchor="w")
         self.arena_status_label.pack(side="left", fill="x", expand=True)
-        self.arena_status_hint = tk.Label(status_card, text="Open Arena to enable sync", bg=PANEL, fg=MUTED, font=("Segoe UI", 8), anchor="w", wraplength=170, justify="left")
-        self.arena_status_hint.pack(fill="x", padx=12, pady=(0, 11))
-        tk.Label(sidebar, text=f"VERSION {APP_VERSION}", bg=SIDEBAR, fg="#718394", font=("Segoe UI", 8, "bold")).pack(side="bottom", anchor="w", padx=20, pady=(0, 12))
+        self.arena_status_hint = tk.Label(sidebar, text="Open Arena to enable sync", bg=SIDEBAR, fg="#7D8E97", font=("Segoe UI", 8), anchor="w", wraplength=176, justify="left")
+        self.arena_status_hint.pack(side="bottom", fill="x", padx=20, pady=(0, 10))
+        tk.Label(sidebar, text=f"VERSION {APP_VERSION}", bg=SIDEBAR, fg="#667A83", font=("Segoe UI", 8, "bold")).pack(side="bottom", anchor="w", padx=20, pady=(0, 15))
 
         self.content = tk.Frame(self, bg=BG)
         self.content.pack(side="left", fill="both", expand=True)
-        topbar = tk.Frame(self.content, bg=BG, height=58)
-        topbar.pack(fill="x", padx=28, pady=(12, 0))
+        topbar = tk.Frame(self.content, bg=BG, height=62)
+        topbar.pack(fill="x", padx=34, pady=(13, 0))
         topbar.pack_propagate(False)
-        self.topbar_title = tk.Label(topbar, text="COLLECTION WORKSPACE", bg=BG, fg=MUTED, font=("Segoe UI", 9, "bold"), anchor="w")
+        self.topbar_title = tk.Label(topbar, text="COLLECTION  /  SYNC", bg=BG, fg="#83969E", font=("Segoe UI", 8, "bold"), anchor="w")
         self.topbar_title.pack(side="left", fill="y")
-        tk.Label(topbar, text="LOCAL  /  PRIVATE", bg=BG, fg="#708697", font=("Segoe UI", 8, "bold")).pack(side="right", fill="y")
-        tk.Frame(self.content, bg=BORDER, height=1).pack(fill="x", padx=28)
+        privacy = tk.Frame(topbar, bg="#111D1B", padx=10, pady=6)
+        privacy.pack(side="right", anchor="center")
+        tk.Canvas(privacy, width=10, height=10, bg="#111D1B", highlightthickness=0).pack(side="left", padx=(0, 6))
+        privacy.winfo_children()[0].create_oval(2, 2, 8, 8, fill=ACCENT, outline="")
+        tk.Label(privacy, text="ON THIS PC", bg="#111D1B", fg="#A3C7BC", font=("Segoe UI", 7, "bold")).pack(side="left")
+        tk.Frame(self.content, bg="#202C34", height=1).pack(fill="x", padx=34)
         self.pages = {
             "scan": self._build_scan_page(),
             "collection": self._build_collection_page(),
@@ -270,17 +284,42 @@ class App(tk.Tk):
             "settings": self._build_settings_page(),
         }
 
+    def _paint_nav_icon(self, canvas: tk.Canvas, key: str, color: str) -> None:
+        canvas.delete("all")
+        if key == "scan":
+            canvas.create_oval(5, 5, 21, 21, outline=color, width=1.5)
+            canvas.create_arc(8, 8, 18, 18, start=35, extent=250, style="arc", outline=color, width=1.5)
+            canvas.create_oval(12, 12, 14, 14, fill=color, outline="")
+        elif key == "collection":
+            for y, inset in ((5, 2), (10, 0), (15, 2)):
+                canvas.create_rectangle(5 + inset, y, 21 - inset, y + 4, outline=color, width=1.2)
+        elif key == "history":
+            canvas.create_arc(5, 5, 21, 21, start=35, extent=290, style="arc", outline=color, width=1.5)
+            canvas.create_polygon(19, 5, 22, 10, 16, 9, fill=color, outline="")
+            canvas.create_line(13, 8, 13, 13, 17, 15, fill=color, width=1.4, capstyle="round")
+        else:
+            canvas.create_oval(7, 7, 19, 19, outline=color, width=1.5)
+            canvas.create_oval(11, 11, 15, 15, fill=color, outline="")
+            for angle in range(0, 360, 45):
+                import math
+                radians = angle * math.pi / 180
+                canvas.create_line(13 + 7 * math.cos(radians), 13 + 7 * math.sin(radians), 13 + 10 * math.cos(radians), 13 + 10 * math.sin(radians), fill=color, width=1.4)
+
     def _set_nav_hover(self, key: str, hovered: bool) -> None:
         button = self.nav_buttons.get(key)
         if button is None:
             return
         if key == self.current_page:
-            bg, fg = PANEL, TEXT
+            bg, fg, icon_color = "#15241F", TEXT, ACCENT
         elif hovered:
-            bg, fg = PANEL_2, TEXT
+            bg, fg, icon_color = PANEL_2, TEXT, TEXT
         else:
-            bg, fg = SIDEBAR, MUTED
+            bg, fg, icon_color = SIDEBAR, MUTED, MUTED
+        self.nav_rows[key].configure(bg=bg)
         button.configure(bg=bg, fg=fg)
+        self.nav_indicators[key].configure(bg=ACCENT if key == self.current_page else bg)
+        self.nav_icons[key].configure(bg=bg)
+        self._paint_nav_icon(self.nav_icons[key], key, icon_color)
 
     def _page_header(self, parent: tk.Widget, title: str, subtitle: str) -> None:
         ttk.Label(parent, text=title, style="Title.TLabel").pack(anchor="w")
@@ -295,102 +334,118 @@ class App(tk.Tk):
     def _build_scan_page(self) -> tk.Frame:
         page = tk.Frame(self.content, bg=BG)
         body = tk.Frame(page, bg=BG)
-        body.pack(fill="both", expand=True, padx=30, pady=22)
+        body.pack(fill="both", expand=True, padx=34, pady=19)
         self._page_header(
             body,
-            "Your Arena collection",
-            "A complete local snapshot, ready to search and export. Open MTG Arena, sign in, and wait at the Home screen before syncing.",
+            "Your collection, in view.",
+            "Keep a private, searchable record of every card you own in MTG Arena.",
         )
 
         metrics = tk.Frame(body, bg=BG)
-        metrics.pack(fill="x")
+        metrics.pack(fill="x", pady=(1, 0))
         self.metric_labels: Dict[str, ttk.Label] = {}
         for index, (key, label) in enumerate((
             ("owned_copies", "OWNED COPIES"),
-            ("unique_entries", "UNIQUE ARENA IDS"),
-            ("needs_review", "NEEDS REVIEW"),
+            ("unique_entries", "UNIQUE CARDS"),
+            ("needs_review", "TO REVIEW"),
         )):
-            card = tk.Frame(metrics, bg=PANEL, highlightthickness=1, highlightbackground=BORDER)
-            card.pack(side="left", fill="x", expand=True, padx=(0, 10 if index < 2 else 0))
-            tk.Frame(card, bg=(ACCENT if index == 0 else (PURPLE if index == 1 else WARN)), height=2).pack(fill="x")
-            inner = tk.Frame(card, bg=PANEL)
-            inner.pack(fill="both", expand=True, padx=16, pady=(10, 12))
+            stat = tk.Frame(metrics, bg=BG)
+            stat.pack(side="left", fill="x", expand=True)
+            inner = tk.Frame(stat, bg=BG)
+            inner.pack(anchor="w", padx=(0, 15), pady=(0, 1))
             value = ttk.Label(inner, text="0", style="Metric.TLabel")
-            value.pack(anchor="w")
-            ttk.Label(inner, text=label, style="CardMuted.TLabel", font=("Segoe UI", 8, "bold")).pack(anchor="w", pady=(2, 0))
+            value.pack(anchor="w", side="left", padx=(0, 9))
+            ttk.Label(inner, text=label, style="Muted.TLabel", font=("Segoe UI", 8, "bold")).pack(anchor="w", side="left", pady=(6, 0))
             self.metric_labels[key] = value
+            if index < 2:
+                tk.Frame(metrics, bg="#26343A", width=1).pack(side="left", fill="y", padx=(0, 19), pady=6)
 
         source_row = tk.Frame(body, bg=BG)
-        source_row.pack(fill="x", expand=True, pady=(16, 0))
+        source_row.pack(fill="both", expand=True, pady=(10, 0))
 
-        automatic = tk.Frame(source_row, bg=PANEL, highlightthickness=1, highlightbackground="#326159")
-        automatic.pack(side="left", fill="both", expand=True, padx=(0, 8))
-        auto_inner = tk.Frame(automatic, bg=PANEL)
-        auto_inner.pack(fill="both", expand=True, padx=20, pady=18)
-        auto_top = tk.Frame(auto_inner, bg=PANEL)
+        automatic = tk.Frame(source_row, bg="#121B20", highlightthickness=1, highlightbackground="#2A413D")
+        automatic.pack(fill="both", expand=True)
+        tk.Frame(automatic, bg=ACCENT, height=2).pack(fill="x")
+        hero_body = tk.Frame(automatic, bg="#121B20")
+        hero_body.pack(fill="both", expand=True, padx=(24, 17), pady=(20, 18))
+        hero_body.grid_columnconfigure(0, weight=1)
+        hero_body.grid_rowconfigure(0, weight=1)
+        auto_inner = tk.Frame(hero_body, bg="#121B20")
+        auto_inner.grid(row=0, column=0, sticky="nsew")
+        auto_top = tk.Frame(auto_inner, bg="#121B20")
         auto_top.pack(fill="x")
-        ttk.Label(auto_top, text="01  /  LIVE CAPTURE", style="CardMuted.TLabel", font=("Segoe UI", 8, "bold")).pack(side="left")
-        tk.Label(auto_top, text="LOCAL ONLY", bg="#18362F", fg=ACCENT, padx=8, pady=3, font=("Segoe UI", 7, "bold")).pack(side="right")
-        ttk.Label(auto_inner, text="Automatic sync", style="Card.TLabel", font=("Segoe UI", 17, "bold")).pack(anchor="w", pady=(12, 0))
+        ttk.Label(auto_top, text="LIVE COLLECTION CAPTURE", style="HeroMuted.TLabel", font=("Segoe UI", 8, "bold")).pack(side="left")
+        tk.Label(auto_top, text="LOCAL  ·  PRIVATE", bg="#1A2927", fg="#9EDAC5", padx=9, pady=4, font=("Segoe UI", 7, "bold")).pack(side="left", padx=(12, 0))
+        ttk.Label(auto_inner, text="Every card.\nOne private vault.", style="Hero.TLabel", font=("Segoe UI", 23, "bold"), justify="left").pack(anchor="w", pady=(13, 0))
         self.auto_description = ttk.Label(
             auto_inner,
-            text="Read your full owned-card snapshot directly from the running Arena client. The verified helper stays on this PC and closes when the read is done.",
-            style="CardMuted.TLabel", wraplength=470, justify="left",
+            text="Read your complete collection from Arena and save it here, ready to search or export.",
+            style="HeroMuted.TLabel", wraplength=480, justify="left",
         )
-        self.auto_description.pack(anchor="w", pady=(7, 12))
-        step_row = tk.Frame(auto_inner, bg=PANEL)
-        step_row.pack(fill="x", pady=(0, 14))
-        for label in ("1  Open Arena", "2  Reach Home", "3  Sync"):
-            tk.Label(step_row, text=label, bg=PANEL_2, fg=TEXT, padx=8, pady=6, font=("Segoe UI", 8, "bold")).pack(side="left", padx=(0, 6))
+        self.auto_description.pack(anchor="w", pady=(8, 13))
+        step_row = tk.Frame(auto_inner, bg="#121B20")
+        step_row.pack(fill="x", pady=(0, 15))
+        for index, (number, label) in enumerate((("01", "Open Arena"), ("02", "Sign in"), ("03", "Sync"))):
+            step = tk.Frame(step_row, bg="#121B20")
+            step.pack(side="left", padx=(0, 17))
+            tk.Label(step, text=number, bg="#121B20", fg=ACCENT if index == 2 else "#718A84", font=("Segoe UI", 8, "bold")).pack(side="left", padx=(0, 6))
+            tk.Label(step, text=label, bg="#121B20", fg="#B7C4C3", font=("Segoe UI", 8)).pack(side="left")
         self.memory_button = ttk.Button(
-            auto_inner, text="Sync my collection   →", style="Accent.TButton", command=self._start_memory
+            auto_inner, text="Sync collection  →", style="Accent.TButton", command=self._start_memory
         )
         self.memory_button.pack(anchor="w")
-        self._bind_card_hover(automatic, "#326159", "#4B8A7E")
+        tk.Label(auto_inner, text="Arena must be open, signed in, and at the Home screen.", bg="#121B20", fg="#738681", font=("Segoe UI", 8)).pack(anchor="w", pady=(11, 0))
 
-        manual = tk.Frame(source_row, bg=PANEL, highlightthickness=1, highlightbackground=BORDER)
-        manual.pack(side="left", fill="both", expand=True, padx=(8, 0))
-        manual_inner = tk.Frame(manual, bg=PANEL)
-        manual_inner.pack(fill="both", expand=True, padx=20, pady=18)
-        ttk.Label(manual_inner, text="02  /  FILE IMPORT", style="CardMuted.TLabel", font=("Segoe UI", 8, "bold")).pack(anchor="w")
-        ttk.Label(manual_inner, text="Manual snapshot", style="Card.TLabel", font=("Segoe UI", 17, "bold")).pack(anchor="w", pady=(12, 0))
+        self.sync_art = self._build_sync_art(hero_body)
+        self.sync_art.grid(row=0, column=1, sticky="e", padx=(12, 0))
+        self._bind_card_hover(automatic, "#2A413D", "#4B7769")
+
+        manual = tk.Frame(source_row, bg=BG)
+        manual.pack(fill="x", pady=(12, 0))
+        file_mark = tk.Canvas(manual, width=28, height=28, bg=BG, highlightthickness=0)
+        file_mark.pack(side="left", padx=(1, 10))
+        file_mark.create_rectangle(7, 3, 21, 25, outline="#91A7A3", width=1.4)
+        file_mark.create_line(10, 12, 18, 12, fill="#91A7A3")
+        file_mark.create_line(10, 16, 18, 16, fill="#91A7A3")
+        file_mark.create_line(10, 20, 16, 20, fill="#91A7A3")
+        manual_inner = tk.Frame(manual, bg=BG)
+        manual_inner.pack(side="left", fill="y", padx=(0, 15))
+        ttk.Label(manual_inner, text="Import a saved snapshot", style="Manual.TLabel", font=("Segoe UI", 9, "bold")).pack(anchor="w")
         self.manual_description = ttk.Label(
             manual_inner,
-            text="Import a saved Arena JSON snapshot. Empty or suspiciously smaller files are checked before they can replace your collection.",
-            style="CardMuted.TLabel", wraplength=440, justify="left",
+            text="JSON fallback", style="Muted.TLabel", font=("Segoe UI", 8), wraplength=220, justify="left",
         )
-        self.manual_description.pack(anchor="w", pady=(7, 14))
+        self.manual_description.pack(anchor="w", pady=(2, 0))
         self.manual_path_var = tk.StringVar()
-        row = tk.Frame(manual_inner, bg=PANEL)
-        row.pack(fill="x", pady=(1, 0))
-        ttk.Entry(row, textvariable=self.manual_path_var).pack(side="left", fill="x", expand=True)
-        ttk.Button(row, text="Browse…", style="Subtle.TButton", command=self._browse_manual).pack(side="left", padx=(8, 0))
-        self.manual_button = ttk.Button(manual_inner, text="Import snapshot", command=self._start_manual_import)
-        self.manual_button.pack(anchor="w", pady=(12, 0))
-        self._bind_card_hover(manual, BORDER, "#435B70")
+        self.manual_path_entry = ttk.Entry(manual, textvariable=self.manual_path_var)
+        self.manual_path_entry.pack(side="left", fill="x", expand=True, ipady=3)
+        ttk.Button(manual, text="Browse…", style="Subtle.TButton", command=self._browse_manual).pack(side="left", padx=(8, 0))
+        self.manual_button = ttk.Button(manual, text="Import JSON", command=self._start_manual_import)
+        self.manual_button.pack(side="left", padx=(7, 0))
 
-        source_row.bind("<Configure>", self._resize_scan_copy, add="+")
-
-        self.banner = tk.Frame(body, bg=PANEL_2, highlightthickness=1, highlightbackground=BORDER)
-        self.banner.pack(fill="x", pady=(15, 0))
-        banner_left = tk.Frame(self.banner, bg=PANEL_2)
-        banner_left.pack(side="left", fill="both", expand=True, padx=16, pady=12)
-        self.banner_title = tk.Label(banner_left, text="READY FOR YOUR NEXT SNAPSHOT", bg=PANEL_2, fg=ACCENT, font=("Segoe UI", 10, "bold"), anchor="w")
+        self.banner = tk.Frame(body, bg=BG)
+        self.banner.pack(fill="x", pady=(9, 0))
+        self.banner_mark = tk.Canvas(self.banner, width=10, height=10, bg=BG, highlightthickness=0)
+        self.banner_mark.pack(side="left", padx=(2, 10))
+        self.banner_mark.create_oval(1, 1, 9, 9, fill=ACCENT, outline="")
+        banner_left = tk.Frame(self.banner, bg=BG)
+        banner_left.pack(side="left", fill="x", expand=True)
+        self.banner_title = tk.Label(banner_left, text="READY TO SYNC", bg=BG, fg=ACCENT, font=("Segoe UI", 9, "bold"), anchor="w")
         self.banner_title.pack(fill="x")
-        self.banner_detail = tk.Label(banner_left, text="Arena must be open at the Home screen for automatic sync.", bg=PANEL_2, fg=MUTED, font=("Segoe UI", 9), anchor="w", justify="left", wraplength=820)
-        self.banner_detail.pack(fill="x", pady=(3, 0))
+        self.banner_detail = tk.Label(banner_left, text="Your current collection stays safe until a complete snapshot is accepted.", bg=BG, fg=MUTED, font=("Segoe UI", 8), anchor="w", justify="left", wraplength=820)
+        self.banner_detail.pack(fill="x", pady=(2, 0))
         self.progress = ttk.Progressbar(body, mode="determinate", maximum=100)
-        self.progress.pack(fill="x", pady=(10, 0), ipady=2)
+        self.progress.pack(fill="x", pady=(8, 0), ipady=2)
         controls = tk.Frame(body, bg=BG)
-        controls.pack(fill="x", pady=(8, 0))
-        self.activity_button = ttk.Button(controls, text="Activity  +", style="Subtle.TButton", command=self._toggle_activity)
+        controls.pack(fill="x", pady=(7, 0))
+        self.activity_button = ttk.Button(controls, text="Show activity  +", style="Subtle.TButton", command=self._toggle_activity)
         self.activity_button.pack(side="left")
         self.stop_button = ttk.Button(controls, text="Cancel", style="Danger.TButton", command=self._stop_worker, state="disabled")
         self.stop_button.pack(side="right")
-        ttk.Button(controls, text="Copy URL", style="Subtle.TButton", command=self._copy_api_endpoint).pack(side="right", padx=(6, 0))
-        ttk.Button(controls, text="Local API", style="Subtle.TButton", command=self._start_bridge).pack(side="right", padx=(6, 0))
-        ttk.Button(controls, text="Diagnostics", style="Subtle.TButton", command=lambda: open_path(self.data_dir / "logs")).pack(side="right", padx=(6, 0))
-        ttk.Button(controls, text="Exports", style="Subtle.TButton", command=lambda: open_path(Path(self.output_path_var.get()))).pack(side="right", padx=(6, 0))
+        ttk.Button(controls, text="Copy API URL", style="Subtle.TButton", command=self._copy_api_endpoint).pack(side="right", padx=(5, 0))
+        ttk.Button(controls, text="Local API", style="Subtle.TButton", command=self._start_bridge).pack(side="right", padx=(5, 0))
+        ttk.Button(controls, text="Logs", style="Subtle.TButton", command=lambda: open_path(self.data_dir / "logs")).pack(side="right", padx=(5, 0))
+        ttk.Button(controls, text="Exports", style="Subtle.TButton", command=lambda: open_path(Path(self.output_path_var.get()))).pack(side="right", padx=(5, 0))
 
         self.activity_panel = tk.Frame(body, bg=PANEL, highlightthickness=1, highlightbackground=BORDER)
         log_inner = tk.Frame(self.activity_panel, bg=PANEL)
@@ -401,7 +456,42 @@ class App(tk.Tk):
         log_scroll.pack(side="right", fill="y")
         self.log_text.pack(side="left", fill="both", expand=True)
         self.log_text.configure(state="disabled")
+        source_row.bind("<Configure>", self._resize_scan_copy, add="+")
+        self._animate_sync_art()
         return page
+
+    def _build_sync_art(self, parent: tk.Widget) -> tk.Canvas:
+        art = tk.Canvas(parent, width=232, height=218, bg="#121B20", highlightthickness=0, bd=0)
+        art.create_oval(31, 18, 201, 188, outline="#263C38", width=1)
+        art.create_oval(43, 30, 189, 176, outline="#1F302E", width=1)
+        art.create_oval(55, 42, 177, 164, outline="#1B2B2A", width=1)
+        art.create_arc(31, 18, 201, 188, start=24, extent=62, style="arc", outline="#4D8072", width=2, tags="orbit_arc")
+        art.create_polygon(68, 48, 122, 38, 169, 126, 113, 142, fill="#17242B", outline="#31464A", width=1)
+        art.create_polygon(78, 68, 130, 54, 165, 143, 110, 159, fill="#1B2C30", outline="#436158", width=1)
+        art.create_polygon(90, 82, 125, 72, 150, 134, 112, 146, fill="#233B37", outline="#668B78", width=1)
+        art.create_polygon(119, 85, 136, 108, 119, 131, 102, 108, fill="#8AC9A8", outline="#D2F0CB", width=1)
+        art.create_oval(111, 100, 127, 116, fill="#D9F2D5", outline="")
+        art.create_line(48, 110, 76, 110, fill="#344A45", width=1)
+        art.create_line(156, 92, 184, 92, fill="#344A45", width=1)
+        art.create_oval(55, 48, 59, 52, fill="#7BAE98", outline="")
+        art.create_oval(173, 148, 177, 152, fill="#7BAE98", outline="")
+        art.create_oval(111, 9, 119, 17, fill=ACCENT, outline="", tags="orbit_dot")
+        art.create_text(116, 202, text="COLLECTION  /  LOCAL", fill="#78918A", font=("Segoe UI", 7, "bold"))
+        return art
+
+    def _animate_sync_art(self) -> None:
+        if self._closing or not hasattr(self, "sync_art"):
+            return
+        phase = (time.monotonic() * 0.45) % (2 * math.pi)
+        center_x, center_y = 116, 103
+        radius_x, radius_y = 83, 82
+        x = center_x + math.cos(phase) * radius_x
+        y = center_y + math.sin(phase) * radius_y
+        self.sync_art.coords("orbit_dot", x - 3, y - 3, x + 3, y + 3)
+        color = GOOD if self.arena_running else ACCENT
+        self.sync_art.itemconfigure("orbit_dot", fill=color)
+        self.sync_art.itemconfigure("orbit_arc", start=int((phase * 57.2958) % 360))
+        self.after(90, self._animate_sync_art)
 
     def _build_collection_page(self) -> tk.Frame:
         page = tk.Frame(self.content, bg=BG)
@@ -515,9 +605,9 @@ class App(tk.Tk):
         ttk.Button(row, text="Browse…", style="Subtle.TButton", command=command).pack(side="left", padx=(8, 0))
 
     def _resize_scan_copy(self, event: tk.Event) -> None:
-        card_width = max(230, (int(event.width) - 48) // 2 - 44)
+        card_width = max(300, int(event.width * 0.56) - 55)
         self.auto_description.configure(wraplength=card_width)
-        self.manual_description.configure(wraplength=card_width)
+        self.manual_description.configure(wraplength=max(130, min(220, int(event.width * 0.26))))
         self.banner_detail.configure(wraplength=max(320, int(event.width) - 205))
 
     def _bind_card_hover(self, panel: tk.Frame, idle_color: str, hover_color: str) -> None:
@@ -533,10 +623,10 @@ class App(tk.Tk):
         self.activity_open = not self.activity_open if open_state is None else bool(open_state)
         if self.activity_open:
             self.activity_panel.pack(fill="x", pady=(8, 0))
-            self.activity_button.configure(text="Activity  −")
+            self.activity_button.configure(text="Hide activity  −")
         else:
             self.activity_panel.pack_forget()
-            self.activity_button.configure(text="Activity  +")
+            self.activity_button.configure(text="Show activity  +")
 
     def _schedule_arena_presence(self) -> None:
         if self._closing:
@@ -587,16 +677,20 @@ class App(tk.Tk):
         self.pages[key].pack(fill="both", expand=True)
         self.current_page = key
         page_titles = {
-            "scan": "COLLECTION WORKSPACE",
-            "collection": "COLLECTION  /  CARDS",
+            "scan": "COLLECTION  /  SYNC",
+            "collection": "COLLECTION  /  LIBRARY",
             "history": "COLLECTION  /  SNAPSHOTS",
             "settings": "PREFERENCES  /  STORAGE",
         }
         self.topbar_title.configure(text=page_titles.get(key, "COLLECTION WORKSPACE"))
         for name, button in self.nav_buttons.items():
             active = name == key
-            button.configure(bg=PANEL if active else SIDEBAR, fg=TEXT if active else MUTED)
+            bg = "#15241F" if active else SIDEBAR
+            button.configure(bg=bg, fg=TEXT if active else MUTED)
+            self.nav_rows[name].configure(bg=bg)
             self.nav_indicators[name].configure(bg=ACCENT if active else SIDEBAR)
+            self.nav_icons[name].configure(bg=bg)
+            self._paint_nav_icon(self.nav_icons[name], name, ACCENT if active else MUTED)
 
     def _browse_manual(self) -> None:
         value = filedialog.askopenfilename(title="Choose collection JSON", filetypes=[("JSON files", "*.json"), ("All files", "*.*")])
@@ -851,6 +945,7 @@ class App(tk.Tk):
         self.banner.configure(highlightbackground=(BORDER if kind == "normal" else color))
         self.banner_title.configure(text=title, fg=color)
         self.banner_detail.configure(text=detail)
+        self.banner_mark.itemconfigure(1, fill=color)
 
     def _append_log(self, timestamp: str, level: str, message: str) -> None:
         self.log_text.configure(state="normal")
@@ -899,7 +994,7 @@ class App(tk.Tk):
             self.after(80, self._poll_events)
 
     def _worker_done(self) -> None:
-        self.memory_button.configure(text="Sync my collection   →")
+        self.memory_button.configure(text="Sync collection  →")
         self.memory_button.configure(state="normal")
         self.manual_button.configure(state="normal")
         self.stop_button.configure(state="disabled")
