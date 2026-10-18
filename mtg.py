@@ -1120,9 +1120,9 @@ class App(tk.Tk):
 
 
 def main() -> int:
-    app = App()
-    app.mainloop()
-    return 0
+    from web_ui import run
+
+    return run(sys.modules[__name__])
 
 
 if __name__ == "__main__":

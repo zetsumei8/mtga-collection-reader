@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' qrc:; style-src 'self'; script-src 'self' qrc:; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none';">
+  <title>MTGA Collection Reader</title>
+  <link rel="stylesheet" href="app.css">
+  <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"><span></span></div>
+        <div class="brand-copy"><strong>ARENA</strong><span>COLLECTION READER</span></div>
+      </div>
+
+      <div class="nav-caption">WORKSPACE</div>
+      <nav class="nav-list" aria-label="Main navigation">
+        <button class="nav-item is-active" data-page="sync"><span class="nav-icon icon-sync" aria-hidden="true"><i></i></span><span>Sync collection</span><kbd>01</kbd></button>
+        <button class="nav-item" data-page="collection"><span class="nav-icon icon-library" aria-hidden="true"><i></i></span><span>Card library</span><kbd>02</kbd></button>
+        <button class="nav-item" data-page="history"><span class="nav-icon icon-history" aria-hidden="true"><i></i></span><span>Snapshots</span><kbd>03</kbd></button>
+        <button class="nav-item" data-page="settings"><span class="nav-icon icon-settings" aria-hidden="true"><i></i></span><span>Settings</span><kbd>04</kbd></button>
+      </nav>
+
+      <div class="sidebar-spacer"></div>
+      <div class="sidebar-foot">
+        <div class="side-status">
+          <span class="status-led is-checking" id="sideLed"></span>
+          <div><strong id="sideArena">CHECKING ARENA</strong><span id="sideArenaHint">Looking for the game</span></div>
+        </div>
+        <div class="side-foot-rule"></div>
+        <div class="side-meta"><span>VERSION <b id="versionLabel">5.2.5</b></span><span class="local-shield" title="Stored on this PC" aria-label="Stored on this PC"></span></div>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <div class="topbar">
+        <div class="breadcrumb"><span>ARENA ARCHIVE</span><span class="crumb-slash">/</span><strong id="crumbPage">SYNC</strong></div>
+        <div class="local-badge"><span class="local-shield" aria-hidden="true"></span><span>PRIVATE ON THIS PC</span></div>
+      </div>
+
+      <section class="page is-visible" id="page-sync" aria-labelledby="syncHeading">
+        <header class="page-heading">
+          <div><div class="eyebrow">YOUR COLLECTION WORKSPACE</div><h1 id="syncHeading">Collection<span class="period">.</span></h1><p id="collectionCaption">A complete, searchable record of the cards you own in Arena.</p></div>
+          <div class="connection-chip" id="connectionChip"><span class="status-led is-checking" id="mainLed"></span><span id="connectionText">Checking Arena</span></div>
+        </header>
+
+        <section class="metric-row" aria-label="Collection totals">
+          <div class="metric-item"><div class="metric-value" id="ownedCopies">—</div><div class="metric-label">Owned copies</div></div>
+          <div class="metric-item"><div class="metric-value" id="uniqueCards">—</div><div class="metric-label">Unique cards</div></div>
+          <div class="metric-item"><div class="metric-value" id="reviewCount">—</div><div class="metric-label">Need a look</div></div>
+        </section>
+
+        <section class="sync-hero" aria-label="Live collection sync">
+          <div class="hero-copy">
+            <div class="hero-kicker"><span class="kicker-led"></span><span>LIVE COLLECTION CAPTURE</span><span class="kicker-divider"></span><span class="kicker-private">LOCAL · PRIVATE</span></div>
+            <h2>Every card.<br><em>All in one place.</em></h2>
+            <p>Pull your full collection from Arena, then search, check, and export it whenever you need.</p>
+            <div class="step-track" aria-label="Before syncing">
+              <div class="step"><span class="step-number">1</span><span>Open Arena</span></div><span class="step-connector"></span>
+              <div class="step"><span class="step-number">2</span><span>Go to Home</span></div><span class="step-connector"></span>
+              <div class="step step-last"><span class="step-number">3</span><span>Sync</span></div>
+            </div>
+            <div class="hero-actions"><button class="button button-primary" id="syncButton"><span>Sync collection</span><span class="button-arrow" aria-hidden="true">↗</span></button><button class="button button-cancel" id="cancelButton" hidden>Cancel sync</button></div>
+            <div class="hero-hint" id="syncHint">Arena must be open, signed in, and at the Home screen.</div>
+          </div>
+
+          <div class="vault-stage" id="vaultStage" role="img" aria-label="CSS illustration of a glowing card in a private collection">
+            <div class="vault-glow"></div><div class="vault-orbit orbit-outer"></div><div class="vault-orbit orbit-inner"></div><div class="orbit-stroke"></div>
+            <span class="orbit-spark spark-one"></span><span class="orbit-spark spark-two"></span><span class="orbit-spark spark-three"></span>
+            <div class="card-stack">
+              <div class="vault-card card-back card-back-a"></div><div class="vault-card card-back card-back-b"></div>
+              <div class="vault-card card-front"><div class="card-rim"></div><div class="card-corner corner-top"></div><div class="card-corner corner-bottom"></div><div class="card-sigil"><i></i></div><div class="card-title-line"></div><div class="card-text-lines"><i></i><i></i><i></i></div><div class="card-glint"></div></div>
+            </div>
+            <div class="art-caption"><span class="caption-dot"></span><strong>YOUR PRIVATE ARCHIVE</strong></div>
+          </div>
+        </section>
+
+        <section class="import-row" aria-label="Import a saved snapshot">
+          <div class="import-label"><span class="document-mark" aria-hidden="true"><i></i><b></b><small></small></span><span><strong>Have a snapshot?</strong><small>Bring in a saved JSON collection.</small></span></div>
+          <label class="path-field" for="snapshotPath"><span class="sr-only">Snapshot file path</span><input id="snapshotPath" type="text" autocomplete="off" spellcheck="false" placeholder="Select a snapshot file…"></label>
+          <button class="button button-secondary" id="chooseSnapshot">Browse</button><button class="button button-import" id="importSnapshot" disabled>Import snapshot</button>
+        </section>
+
+        <section class="activity-strip" aria-label="Activity and tools">
+          <span class="status-led is-ready" id="activityLed"></span><div class="activity-copy"><strong id="statusTitle">READY TO SYNC</strong><span id="statusDetail">Your last saved collection is safe until a new snapshot is ready.</span></div>
+          <div class="task-progress" id="taskProgress" hidden><span id="progressLabel">Starting…</span><div class="progress-track"><i id="progressFill"></i></div></div>
+          <button class="button button-quiet activity-toggle" id="activityToggle" aria-expanded="false">Activity <span id="activityChevron">＋</span></button>
+          <button class="button button-quiet export-shortcut" id="openExports">Open exports <span aria-hidden="true">↗</span></button>
+          <div class="tools-menu-wrap"><button class="button button-quiet" id="toolsToggle" aria-expanded="false">Tools <span class="chevron">⌄</span></button>
+            <div class="tools-menu" id="toolsMenu" hidden><button data-tool="openLogs">Open sync logs</button><button data-tool="openData">Open data folder</button><div class="menu-rule"></div><button data-tool="startApi">Start local API</button><button data-tool="copyApi">Copy API address</button></div>
+          </div>
+        </section>
+        <section class="activity-panel" id="activityPanel" hidden><div class="activity-panel-head"><strong>Recent activity</strong><span>SYNC DETAILS</span></div><div class="log-list" id="logList"><div class="log-empty">Sync and import details will appear here.</div></div></section>
+      </section>
+
+      <section class="page" id="page-collection" aria-labelledby="libraryHeading">
+        <header class="page-heading secondary-heading"><div><div class="eyebrow">YOUR ARENA ARCHIVE</div><h1 id="libraryHeading">Card library<span class="period">.</span></h1><p>Search every saved card and find records that need a closer look.</p></div><button class="button button-primary" id="exportCurrent">Export collection <span class="button-arrow" aria-hidden="true">↗</span></button></header>
+        <div class="library-tools"><label class="search-field"><span class="search-icon" aria-hidden="true"></span><input id="cardSearch" type="search" placeholder="Search cards, sets, collector numbers, or Arena IDs" autocomplete="off"></label><select id="reviewFilter" aria-label="Filter collection"><option value="all">All cards</option><option value="review">Needs a look</option></select><span class="result-count" id="resultCount"></span></div>
+        <div class="data-table-wrap"><table class="data-table" id="collectionTable"><thead><tr><th data-sort="name">CARD</th><th data-sort="set_code">SET / PRINTING</th><th data-sort="quantity" class="numeric">COPIES</th><th data-sort="review">STATUS</th></tr></thead><tbody id="collectionBody"></tbody></table><div class="table-empty" id="collectionEmpty" hidden><span class="empty-symbol"></span><strong id="emptyTitle">Your collection will appear here</strong><p id="emptyDetail">Sync Arena or import a snapshot to start your archive.</p></div></div>
+        <div class="table-pagination"><span id="pageSummary"></span><div><button class="button button-secondary page-button" id="pagePrev" aria-label="Previous page">←</button><button class="button button-secondary page-button" id="pageNext" aria-label="Next page">→</button></div></div>
+      </section>
+
+      <section class="page" id="page-history" aria-labelledby="historyHeading"><header class="page-heading secondary-heading"><div><div class="eyebrow">LOCAL HISTORY</div><h1 id="historyHeading">Snapshots<span class="period">.</span></h1><p>Accepted captures stay here, so you can track and recover your collection.</p></div></header>
+        <div class="data-table-wrap history-wrap"><table class="data-table"><thead><tr><th>CAPTURED</th><th>SOURCE</th><th>ARENA VERSION</th><th class="numeric">UNIQUE CARDS</th><th class="numeric">OWNED COPIES</th><th>SNAPSHOT ID</th></tr></thead><tbody id="historyBody"></tbody></table><div class="table-empty" id="historyEmpty" hidden><span class="empty-symbol"></span><strong>No snapshots yet</strong><p>Your accepted syncs and imports will be listed here.</p></div></div>
+      </section>
+
+      <section class="page" id="page-settings" aria-labelledby="settingsHeading"><header class="page-heading secondary-heading"><div><div class="eyebrow">PREFERENCES</div><h1 id="settingsHeading">Settings<span class="period">.</span></h1><p>Choose where card identities are read from and where exports are saved.</p></div></header>
+        <div class="settings-layout"><section class="settings-section"><div class="settings-section-head"><div><strong>Storage locations</strong><p>Your collection data stays on this device.</p></div><span class="local-badge small-badge"><span class="local-shield" aria-hidden="true"></span>LOCAL</span></div>
+          <label class="settings-field"><span>MTG Arena raw card data</span><div class="settings-control"><input id="rawPath" type="text" spellcheck="false"><button class="button button-secondary" id="browseRaw">Browse</button></div><small>Used to match Arena IDs with readable card names.</small></label>
+          <label class="settings-field"><span>Export folder</span><div class="settings-control"><input id="exportPath" type="text" spellcheck="false"><button class="button button-secondary" id="browseExport">Browse</button></div><small>JSON, CSV, and text exports are saved here.</small></label>
+          <div class="settings-save-row"><span id="settingsFeedback" role="status"></span><button class="button button-primary" id="saveSettings">Save settings <span class="button-arrow" aria-hidden="true">↗</span></button></div>
+        </section><aside class="security-note"><span class="security-mark" aria-hidden="true"></span><div><strong>Private by design</strong><p>The sync helper reads your collection locally. It never asks for your Arena password. The optional API listens only on this PC.</p></div></aside></div>
+      </section>
+
+      <dialog class="confirm-dialog" id="confirmDialog" aria-labelledby="confirmHeading">
+        <div class="dialog-mark" aria-hidden="true"></div><div class="eyebrow">COLLECTION SAFETY</div><h2 id="confirmHeading">Replace the saved collection?</h2>
+        <p id="confirmMessage">This snapshot is much smaller than the saved collection.</p>
+        <div class="compare-stats"><div><span>Saved now</span><strong id="savedStats">—</strong></div><div><span>Incoming snapshot</span><strong id="incomingStats">—</strong></div></div>
+        <p class="dialog-note">Keeping it preserves your last accepted collection. Replacing it stores both snapshots in history.</p>
+        <div class="dialog-actions"><button class="button button-secondary" id="confirmKeep">Keep saved collection</button><button class="button button-primary" id="confirmReplace">Replace collection</button></div>
+      </dialog>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </main>
+  </div>
+</body>
+</html>

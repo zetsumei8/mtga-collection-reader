@@ -4,6 +4,11 @@
   "product_name": "MTGA Collection Reader",
   "managed_files": [
     "mtg.py",
+    "web_ui.py",
+    "build_requirements.txt",
+    "ui/index.html",
+    "ui/app.css",
+    "ui/app.js",
     "daemon_provider.py",
     "collection_store.py",
     "card_database.py",
