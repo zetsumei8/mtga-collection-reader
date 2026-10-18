@@ -707,9 +707,9 @@ class CollectionStore:
         clauses: List[str] = []
         params: List[Any] = []
         if search.strip():
-            clauses.append("(name LIKE ? OR set_code LIKE ? OR collector_number LIKE ?)")
+            clauses.append("(name LIKE ? OR set_code LIKE ? OR collector_number LIKE ? OR CAST(arena_id AS TEXT) LIKE ?)")
             term = f"%{search.strip()}%"
-            params.extend([term, term, term])
+            params.extend([term, term, term, term])
         if review_only:
             clauses.append("needs_review=1")
         where = " WHERE " + " AND ".join(clauses) if clauses else ""

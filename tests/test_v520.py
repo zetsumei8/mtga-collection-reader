@@ -4,6 +4,7 @@ import io
 import sys
 import json
 import hashlib
+import sqlite3
 import tempfile
 import threading
 import urllib.error
@@ -19,7 +20,7 @@ import daemon_provider
 import manual_import
 import provider_contract
 from bridge_service import BridgeHandler, ensure_token
-from card_database import prepare_database
+from card_database import load_local_database, prepare_database
 from collection_store import CollectionStore, SuspiciousSnapshotError
 from daemon_provider import DaemonProviderError, HelperInstall, MtgaDaemonProvider, _extract_archive_safely, ensure_helper, parse_all_cards_payload, parse_cards_payload
 from manual_import import ManualImportError, load_manual_snapshot
@@ -132,12 +133,58 @@ def test_helper_identity_fallback(root: Path) -> None:
     fallback = {
         3101: {"name": "Fallback Card", "set": "TST", "collector_number": "1"}
     }
-    database, source = prepare_database(
-        root / "missing-raw", root / "arena_cards.json", None, fallback_database=fallback
-    )
+    # This fallback test must stay deterministic on machines with Arena installed.
+    with mock.patch("card_database.discover_mtga_raw_paths", return_value=()):
+        database, source = prepare_database(
+            root / "missing-raw", root / "arena_cards.json", None, fallback_database=fallback
+        )
     assert source == "Arena helper card database"
     assert database[3101]["name"] == "Fallback Card"
     assert (root / "arena_cards.json").is_file()
+
+
+def test_local_database_localization_schemas(root: Path) -> None:
+    for schema in ("arena-enus", "legacy"):
+        raw = root / schema / "Raw"
+        raw.mkdir(parents=True)
+        database_path = raw / "Raw_CardDatabase_test.mtga"
+        connection = sqlite3.connect(database_path)
+        connection.execute(
+            "CREATE TABLE Cards (GrpId INT, TitleId INT, ExpansionCode TEXT, CollectorNumber TEXT)"
+        )
+        connection.execute(
+            "INSERT INTO Cards VALUES (4201, 5101, 'TST', '42')"
+        )
+        if schema == "arena-enus":
+            connection.execute("CREATE TABLE Localizations (LocId INT)")
+            connection.execute(
+                "CREATE TABLE Localizations_enUS (LocId INT, Formatted INT, Loc TEXT)"
+            )
+            connection.executemany(
+                "INSERT INTO Localizations_enUS VALUES (?, ?, ?)",
+                [
+                    (5101, 0, "Card rules text"),
+                    (5101, 1, "Test Card"),
+                ],
+            )
+        else:
+            connection.execute(
+                "CREATE TABLE Localizations (Id INT, Text TEXT, Format TEXT)"
+            )
+            connection.execute(
+                "INSERT INTO Localizations VALUES (5101, 'Test Card', 'en-US')"
+            )
+        connection.execute("CREATE TABLE Padding (Value BLOB)")
+        connection.execute("INSERT INTO Padding VALUES (?)", (b"x" * 600_000,))
+        connection.commit()
+        connection.close()
+
+        database = load_local_database(raw, None)
+        assert database[4201] == {
+            "name": "Test Card",
+            "set": "TST",
+            "collector_number": "42",
+        }
 
 
 def test_helper_install(root: Path) -> None:
@@ -339,6 +386,7 @@ def test_snapshot_store(root: Path) -> None:
     summary1, _ = store.apply_authoritative_snapshot(scan1, first, observations(first))
     store.finish_session(summary1)
     assert store.metrics()["unique_entries"] == 100
+    assert [row["arena_id"] for row in store.collection_rows(search="5005")] == [5005]
 
     scan2 = store.begin_session("mtga-memory", "same")
     summary2, _ = store.apply_authoritative_snapshot(scan2, first, observations(first))
@@ -420,13 +468,14 @@ def main() -> int:
         test_manual_formats(root)
         test_helper_payloads()
         test_helper_identity_fallback(root / "identity")
+        test_local_database_localization_schemas(root / "local-database")
         test_helper_install(root / "helper")
         test_launch_rehashes_helper_before_start(root / "launch")
         test_helper_archive_safety(root / "archive")
         test_mocked_daemon_snapshot(root / "mock")
         test_snapshot_store(root / "store")
         test_bridge_token_and_http(root / "bridge")
-    print("v5.2.5 validation: 10 test groups passed")
+    print("v5.2.5 validation: 11 test groups passed")
     return 0
 
 

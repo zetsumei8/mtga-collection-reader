@@ -33,17 +33,18 @@ APP_NAME = "MTGA Collection Reader"
 APP_VERSION = "5.2.5"
 DEFAULT_RAW_FOLDER = Path(r"G:\MTGA\MTGA_Data\Downloads\Raw")
 
-BG = "#10151D"
-PANEL = "#171E28"
-PANEL_2 = "#1D2632"
-BORDER = "#2B3746"
-TEXT = "#E8EDF3"
-MUTED = "#98A6B7"
-ACCENT = "#4C8DFF"
-GOOD = "#2FB36F"
-WARN = "#D5A83E"
-DANGER = "#D85B5B"
-PURPLE = "#9667D7"
+BG = "#0C121B"
+SIDEBAR = "#091019"
+PANEL = "#131D29"
+PANEL_2 = "#1A2734"
+BORDER = "#2A3A4A"
+TEXT = "#EAF1F4"
+MUTED = "#9AAAB7"
+ACCENT = "#77DCCB"
+GOOD = "#62D39B"
+WARN = "#E8B86D"
+DANGER = "#EC7C85"
+PURPLE = "#A991F4"
 
 
 class CancelledError(RuntimeError):
@@ -158,13 +159,18 @@ class App(tk.Tk):
         self.worker: Optional[threading.Thread] = None
         self.pending_snapshot: Optional[tuple[CollectionSnapshot, list[dict[str, Any]], int, Dict[str, Any]]] = None
         self.bridge_thread: Optional[threading.Thread] = None
+        self.current_page = "scan"
+        self.arena_running: Optional[bool] = None
+        self.activity_open = False
+        self._closing = False
 
         self._configure_style()
         self._build_shell()
         self._show_page("scan")
         self._refresh_all()
         self.after(80, self._poll_events)
-        self.protocol("WM_DELETE_WINDOW", self.destroy)
+        self.after(250, self._schedule_arena_presence)
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _configure_style(self) -> None:
         style = ttk.Style(self)
@@ -174,42 +180,89 @@ class App(tk.Tk):
             pass
         style.configure(".", font=("Segoe UI", 10), background=BG, foreground=TEXT)
         style.configure("TFrame", background=BG)
-        style.configure("Card.TFrame", background=PANEL, relief="flat")
+        style.configure("Card.TFrame", background=PANEL, relief="flat", borderwidth=0)
         style.configure("TLabel", background=BG, foreground=TEXT)
         style.configure("Muted.TLabel", background=BG, foreground=MUTED)
         style.configure("Card.TLabel", background=PANEL, foreground=TEXT)
         style.configure("CardMuted.TLabel", background=PANEL, foreground=MUTED)
-        style.configure("Title.TLabel", background=BG, foreground=TEXT, font=("Segoe UI", 22, "bold"))
-        style.configure("Metric.TLabel", background=PANEL, foreground=TEXT, font=("Segoe UI", 20, "bold"))
-        style.configure("Accent.TButton", background=ACCENT, foreground="white", padding=(14, 8))
-        style.map("Accent.TButton", background=[("active", "#6AA1FF"), ("disabled", BORDER)])
-        style.configure("Danger.TButton", background=DANGER, foreground="white", padding=(12, 7))
-        style.configure("Treeview", background=PANEL, fieldbackground=PANEL, foreground=TEXT, rowheight=25)
-        style.configure("Treeview.Heading", background=PANEL_2, foreground=TEXT)
-        style.map("Treeview", background=[("selected", BORDER)], foreground=[("selected", TEXT)])
-        style.configure("TEntry", fieldbackground=PANEL_2, foreground=TEXT)
+        style.configure("Title.TLabel", background=BG, foreground=TEXT, font=("Segoe UI", 25, "bold"))
+        style.configure("Metric.TLabel", background=PANEL, foreground=TEXT, font=("Segoe UI", 21, "bold"))
+        style.configure("TButton", background=PANEL_2, foreground=TEXT, padding=(12, 9), borderwidth=0, relief="flat", font=("Segoe UI", 9, "bold"))
+        style.map("TButton", background=[("disabled", PANEL), ("pressed", "#243846"), ("active", "#26394A")], foreground=[("disabled", "#687887"), ("active", TEXT)])
+        style.configure("Accent.TButton", background=ACCENT, foreground="#09201D", padding=(16, 11), borderwidth=0, relief="flat", font=("Segoe UI", 10, "bold"))
+        style.map("Accent.TButton", background=[("disabled", BORDER), ("pressed", "#57BDAF"), ("active", "#8BE9D9")], foreground=[("disabled", MUTED), ("active", "#071B18")])
+        style.configure("Subtle.TButton", background=PANEL, foreground=MUTED, padding=(10, 8), borderwidth=0, relief="flat", font=("Segoe UI", 9, "bold"))
+        style.map("Subtle.TButton", background=[("pressed", PANEL_2), ("active", PANEL_2)], foreground=[("active", TEXT)])
+        style.configure("Danger.TButton", background="#49252D", foreground="#FFDCE0", padding=(12, 9), borderwidth=0, relief="flat", font=("Segoe UI", 9, "bold"))
+        style.map("Danger.TButton", background=[("disabled", PANEL), ("pressed", "#6A303B"), ("active", "#63303A")], foreground=[("disabled", "#687887")])
+        style.configure("Treeview", background=PANEL, fieldbackground=PANEL, foreground=TEXT, rowheight=31, borderwidth=0, font=("Segoe UI", 9))
+        style.configure("Treeview.Heading", background=PANEL_2, foreground=MUTED, font=("Segoe UI", 9, "bold"), padding=(8, 9), relief="flat")
+        style.map("Treeview.Heading", background=[("active", "#26394A")], foreground=[("active", TEXT)])
+        style.map("Treeview", background=[("selected", "#24444A")], foreground=[("selected", TEXT)])
+        style.configure("TEntry", fieldbackground=PANEL_2, foreground=TEXT, insertcolor=TEXT, padding=(9, 8), borderwidth=0)
+        style.map("TEntry", fieldbackground=[("focus", "#202F3E")])
         style.configure("TCombobox", fieldbackground=PANEL_2, foreground=TEXT)
         style.configure("TCheckbutton", background=PANEL, foreground=TEXT)
+        style.configure("Horizontal.TProgressbar", background=ACCENT, troughcolor=PANEL_2, bordercolor=PANEL_2, lightcolor=ACCENT, darkcolor=ACCENT)
 
     def _build_shell(self) -> None:
-        sidebar = tk.Frame(self, bg="#0C1118", width=200)
+        sidebar = tk.Frame(self, bg=SIDEBAR, width=218)
         sidebar.pack(side="left", fill="y")
         sidebar.pack_propagate(False)
-        tk.Label(sidebar, text="MTGA", bg="#0C1118", fg=TEXT, font=("Segoe UI", 19, "bold")).pack(anchor="w", padx=22, pady=(24, 0))
-        tk.Label(sidebar, text="COLLECTION ARCHIVE", bg="#0C1118", fg=MUTED, font=("Segoe UI", 8, "bold")).pack(anchor="w", padx=22, pady=(0, 28))
+        brand = tk.Frame(sidebar, bg=SIDEBAR)
+        brand.pack(fill="x", padx=20, pady=(22, 24))
+        mark = tk.Canvas(brand, width=38, height=38, bg=SIDEBAR, highlightthickness=0)
+        mark.pack(side="left", padx=(0, 11))
+        mark.create_polygon(19, 2, 35, 11, 35, 27, 19, 36, 3, 27, 3, 11, fill="#17342F", outline=ACCENT, width=1)
+        mark.create_polygon(19, 8, 27, 19, 19, 30, 11, 19, fill=ACCENT, outline="")
+        brand_copy = tk.Frame(brand, bg=SIDEBAR)
+        brand_copy.pack(side="left", fill="y")
+        tk.Label(brand_copy, text="MTGA", bg=SIDEBAR, fg=TEXT, font=("Segoe UI", 16, "bold")).pack(anchor="w")
+        tk.Label(brand_copy, text="COLLECTION VAULT", bg=SIDEBAR, fg=MUTED, font=("Segoe UI", 7, "bold")).pack(anchor="w", pady=(1, 0))
+        tk.Frame(sidebar, bg=BORDER, height=1).pack(fill="x", padx=18)
+        tk.Label(sidebar, text="WORKSPACE", bg=SIDEBAR, fg="#718394", font=("Segoe UI", 8, "bold")).pack(anchor="w", padx=20, pady=(20, 8))
         self.nav_buttons: Dict[str, tk.Button] = {}
-        for key, label in (("scan", "Sync"), ("collection", "Collection"), ("history", "Snapshots"), ("settings", "Settings")):
+        self.nav_indicators: Dict[str, tk.Frame] = {}
+        for key, label, icon in (("scan", "Sync", "◉"), ("collection", "Collection", "▤"), ("history", "Snapshots", "↻"), ("settings", "Settings", "⚙")):
+            row = tk.Frame(sidebar, bg=SIDEBAR, height=44)
+            row.pack(fill="x", padx=10, pady=2)
+            row.pack_propagate(False)
+            indicator = tk.Frame(row, bg=SIDEBAR, width=3)
+            indicator.pack(side="left", fill="y")
             button = tk.Button(
-                sidebar, text=label, command=lambda page=key: self._show_page(page), bg="#0C1118", fg=MUTED,
-                activebackground=PANEL, activeforeground=TEXT, bd=0, relief="flat", anchor="w", padx=22,
-                pady=12, font=("Segoe UI", 10, "bold"), cursor="hand2", highlightthickness=0,
+                row, text=f"{icon}   {label}", command=lambda page=key: self._show_page(page), bg=SIDEBAR, fg=MUTED,
+                activebackground=PANEL_2, activeforeground=TEXT, bd=0, relief="flat", anchor="w", padx=14,
+                pady=10, font=("Segoe UI", 10, "bold"), cursor="hand2", highlightthickness=0,
             )
-            button.pack(fill="x", padx=8, pady=2)
+            button.pack(side="left", fill="both", expand=True)
+            button.bind("<Enter>", lambda _event, page=key: self._set_nav_hover(page, True))
+            button.bind("<Leave>", lambda _event, page=key: self._set_nav_hover(page, False))
             self.nav_buttons[key] = button
-        tk.Label(sidebar, text=f"Version {APP_VERSION}", bg="#0C1118", fg="#647285", font=("Segoe UI", 8)).pack(side="bottom", anchor="w", padx=22, pady=18)
+            self.nav_indicators[key] = indicator
+
+        tk.Frame(sidebar, bg=BORDER, height=1).pack(fill="x", padx=18, pady=(18, 0))
+        status_card = tk.Frame(sidebar, bg=PANEL, highlightthickness=1, highlightbackground=BORDER)
+        status_card.pack(side="bottom", fill="x", padx=12, pady=(12, 10))
+        status_head = tk.Frame(status_card, bg=PANEL)
+        status_head.pack(fill="x", padx=12, pady=(11, 2))
+        self.arena_dot = tk.Canvas(status_head, width=11, height=11, bg=PANEL, highlightthickness=0)
+        self.arena_dot.pack(side="left", padx=(0, 8))
+        self.arena_dot.create_oval(2, 2, 9, 9, fill=WARN, outline="")
+        self.arena_status_label = tk.Label(status_head, text="CHECKING ARENA", bg=PANEL, fg=MUTED, font=("Segoe UI", 8, "bold"), anchor="w")
+        self.arena_status_label.pack(side="left", fill="x", expand=True)
+        self.arena_status_hint = tk.Label(status_card, text="Open Arena to enable sync", bg=PANEL, fg=MUTED, font=("Segoe UI", 8), anchor="w", wraplength=170, justify="left")
+        self.arena_status_hint.pack(fill="x", padx=12, pady=(0, 11))
+        tk.Label(sidebar, text=f"VERSION {APP_VERSION}", bg=SIDEBAR, fg="#718394", font=("Segoe UI", 8, "bold")).pack(side="bottom", anchor="w", padx=20, pady=(0, 12))
 
         self.content = tk.Frame(self, bg=BG)
         self.content.pack(side="left", fill="both", expand=True)
+        topbar = tk.Frame(self.content, bg=BG, height=58)
+        topbar.pack(fill="x", padx=28, pady=(12, 0))
+        topbar.pack_propagate(False)
+        self.topbar_title = tk.Label(topbar, text="COLLECTION WORKSPACE", bg=BG, fg=MUTED, font=("Segoe UI", 9, "bold"), anchor="w")
+        self.topbar_title.pack(side="left", fill="y")
+        tk.Label(topbar, text="LOCAL  /  PRIVATE", bg=BG, fg="#708697", font=("Segoe UI", 8, "bold")).pack(side="right", fill="y")
+        tk.Frame(self.content, bg=BORDER, height=1).pack(fill="x", padx=28)
         self.pages = {
             "scan": self._build_scan_page(),
             "collection": self._build_collection_page(),
@@ -217,179 +270,333 @@ class App(tk.Tk):
             "settings": self._build_settings_page(),
         }
 
+    def _set_nav_hover(self, key: str, hovered: bool) -> None:
+        button = self.nav_buttons.get(key)
+        if button is None:
+            return
+        if key == self.current_page:
+            bg, fg = PANEL, TEXT
+        elif hovered:
+            bg, fg = PANEL_2, TEXT
+        else:
+            bg, fg = SIDEBAR, MUTED
+        button.configure(bg=bg, fg=fg)
+
     def _page_header(self, parent: tk.Widget, title: str, subtitle: str) -> None:
         ttk.Label(parent, text=title, style="Title.TLabel").pack(anchor="w")
-        ttk.Label(parent, text=subtitle, style="Muted.TLabel", wraplength=900).pack(anchor="w", pady=(2, 18))
+        description = ttk.Label(parent, text=subtitle, style="Muted.TLabel", wraplength=920, justify="left")
+        description.pack(anchor="w", pady=(3, 18))
+        parent.bind(
+            "<Configure>",
+            lambda event, label=description: label.configure(wraplength=max(320, event.width - 8)),
+            add="+",
+        )
 
     def _build_scan_page(self) -> tk.Frame:
         page = tk.Frame(self.content, bg=BG)
         body = tk.Frame(page, bg=BG)
-        body.pack(fill="both", expand=True, padx=28, pady=24)
+        body.pack(fill="both", expand=True, padx=30, pady=22)
         self._page_header(
             body,
-            "Get my Arena collection",
-            "Open MTG Arena, sign in, and wait for the Home screen. One click reads the complete collection from Arena using a temporary read-only local helper.",
+            "Your Arena collection",
+            "A complete local snapshot, ready to search and export. Open MTG Arena, sign in, and wait at the Home screen before syncing.",
         )
 
         metrics = tk.Frame(body, bg=BG)
         metrics.pack(fill="x")
         self.metric_labels: Dict[str, ttk.Label] = {}
-        for key, label in (("owned_copies", "Owned copies"), ("unique_entries", "Arena IDs"), ("needs_review", "Mapping review")):
-            card = ttk.Frame(metrics, style="Card.TFrame", padding=16)
-            card.pack(side="left", fill="x", expand=True, padx=(0, 10 if key != "needs_review" else 0))
-            value = ttk.Label(card, text="0", style="Metric.TLabel")
+        for index, (key, label) in enumerate((
+            ("owned_copies", "OWNED COPIES"),
+            ("unique_entries", "UNIQUE ARENA IDS"),
+            ("needs_review", "NEEDS REVIEW"),
+        )):
+            card = tk.Frame(metrics, bg=PANEL, highlightthickness=1, highlightbackground=BORDER)
+            card.pack(side="left", fill="x", expand=True, padx=(0, 10 if index < 2 else 0))
+            tk.Frame(card, bg=(ACCENT if index == 0 else (PURPLE if index == 1 else WARN)), height=2).pack(fill="x")
+            inner = tk.Frame(card, bg=PANEL)
+            inner.pack(fill="both", expand=True, padx=16, pady=(10, 12))
+            value = ttk.Label(inner, text="0", style="Metric.TLabel")
             value.pack(anchor="w")
-            ttk.Label(card, text=label, style="CardMuted.TLabel").pack(anchor="w")
+            ttk.Label(inner, text=label, style="CardMuted.TLabel", font=("Segoe UI", 8, "bold")).pack(anchor="w", pady=(2, 0))
             self.metric_labels[key] = value
 
         source_row = tk.Frame(body, bg=BG)
-        source_row.pack(fill="x", pady=(18, 0))
+        source_row.pack(fill="x", expand=True, pady=(16, 0))
 
-        automatic = ttk.Frame(source_row, style="Card.TFrame", padding=22)
-        automatic.pack(side="left", fill="both", expand=True, padx=(0, 9))
-        ttk.Label(automatic, text="Automatic Arena Sync", style="Card.TLabel", font=("Segoe UI", 16, "bold")).pack(anchor="w")
-        ttk.Label(
-            automatic,
-            text=(
-                "No collection scrolling. No screenshots. No OCR. No anchor cards. "
-                "On the first run, the app downloads the unmodified open-source read-only helper; later syncs reuse it."
-            ),
-            style="CardMuted.TLabel", wraplength=500,
-        ).pack(anchor="w", pady=(6, 12))
-        steps = (
-            "1. Open Arena and sign in.\n"
-            "2. Wait for the Home screen.\n"
-            "3. Click the button below."
+        automatic = tk.Frame(source_row, bg=PANEL, highlightthickness=1, highlightbackground="#326159")
+        automatic.pack(side="left", fill="both", expand=True, padx=(0, 8))
+        auto_inner = tk.Frame(automatic, bg=PANEL)
+        auto_inner.pack(fill="both", expand=True, padx=20, pady=18)
+        auto_top = tk.Frame(auto_inner, bg=PANEL)
+        auto_top.pack(fill="x")
+        ttk.Label(auto_top, text="01  /  LIVE CAPTURE", style="CardMuted.TLabel", font=("Segoe UI", 8, "bold")).pack(side="left")
+        tk.Label(auto_top, text="LOCAL ONLY", bg="#18362F", fg=ACCENT, padx=8, pady=3, font=("Segoe UI", 7, "bold")).pack(side="right")
+        ttk.Label(auto_inner, text="Automatic sync", style="Card.TLabel", font=("Segoe UI", 17, "bold")).pack(anchor="w", pady=(12, 0))
+        self.auto_description = ttk.Label(
+            auto_inner,
+            text="Read your full owned-card snapshot directly from the running Arena client. The verified helper stays on this PC and closes when the read is done.",
+            style="CardMuted.TLabel", wraplength=470, justify="left",
         )
-        ttk.Label(automatic, text=steps, style="Card.TLabel", wraplength=500).pack(anchor="w", pady=(0, 16))
+        self.auto_description.pack(anchor="w", pady=(7, 12))
+        step_row = tk.Frame(auto_inner, bg=PANEL)
+        step_row.pack(fill="x", pady=(0, 14))
+        for label in ("1  Open Arena", "2  Reach Home", "3  Sync"):
+            tk.Label(step_row, text=label, bg=PANEL_2, fg=TEXT, padx=8, pady=6, font=("Segoe UI", 8, "bold")).pack(side="left", padx=(0, 6))
         self.memory_button = ttk.Button(
-            automatic, text="Get My MTGA Collection", style="Accent.TButton", command=self._start_memory
+            auto_inner, text="Sync my collection   →", style="Accent.TButton", command=self._start_memory
         )
         self.memory_button.pack(anchor="w")
-        ttk.Label(
-            automatic,
-            text="The helper runs only on 127.0.0.1, reads the Arena process, returns grpId + quantity, and is stopped after the sync.",
-            style="CardMuted.TLabel", wraplength=500,
-        ).pack(anchor="w", pady=(12, 0))
+        self._bind_card_hover(automatic, "#326159", "#4B8A7E")
 
-        manual = ttk.Frame(source_row, style="Card.TFrame", padding=22)
-        manual.pack(side="left", fill="both", expand=True, padx=(9, 0))
-        ttk.Label(manual, text="Manual JSON Fallback", style="Card.TLabel", font=("Segoe UI", 14, "bold")).pack(anchor="w")
-        ttk.Label(
-            manual,
-            text=(
-                "Use a compatible snapshot, {grpId, owned} list, or Arena-ID/quantity map only when an Arena update temporarily breaks automatic sync. "
-                "An empty or suspiciously smaller import cannot silently replace the saved collection."
-            ),
-            style="CardMuted.TLabel", wraplength=430,
-        ).pack(anchor="w", pady=(6, 12))
+        manual = tk.Frame(source_row, bg=PANEL, highlightthickness=1, highlightbackground=BORDER)
+        manual.pack(side="left", fill="both", expand=True, padx=(8, 0))
+        manual_inner = tk.Frame(manual, bg=PANEL)
+        manual_inner.pack(fill="both", expand=True, padx=20, pady=18)
+        ttk.Label(manual_inner, text="02  /  FILE IMPORT", style="CardMuted.TLabel", font=("Segoe UI", 8, "bold")).pack(anchor="w")
+        ttk.Label(manual_inner, text="Manual snapshot", style="Card.TLabel", font=("Segoe UI", 17, "bold")).pack(anchor="w", pady=(12, 0))
+        self.manual_description = ttk.Label(
+            manual_inner,
+            text="Import a saved Arena JSON snapshot. Empty or suspiciously smaller files are checked before they can replace your collection.",
+            style="CardMuted.TLabel", wraplength=440, justify="left",
+        )
+        self.manual_description.pack(anchor="w", pady=(7, 14))
         self.manual_path_var = tk.StringVar()
-        row = tk.Frame(manual, bg=PANEL)
-        row.pack(fill="x")
+        row = tk.Frame(manual_inner, bg=PANEL)
+        row.pack(fill="x", pady=(1, 0))
         ttk.Entry(row, textvariable=self.manual_path_var).pack(side="left", fill="x", expand=True)
-        ttk.Button(row, text="Browse", command=self._browse_manual).pack(side="left", padx=(8, 0))
-        self.manual_button = ttk.Button(manual, text="Import JSON snapshot", command=self._start_manual_import)
-        self.manual_button.pack(anchor="e", pady=(10, 0))
+        ttk.Button(row, text="Browse…", style="Subtle.TButton", command=self._browse_manual).pack(side="left", padx=(8, 0))
+        self.manual_button = ttk.Button(manual_inner, text="Import snapshot", command=self._start_manual_import)
+        self.manual_button.pack(anchor="w", pady=(12, 0))
+        self._bind_card_hover(manual, BORDER, "#435B70")
+
+        source_row.bind("<Configure>", self._resize_scan_copy, add="+")
 
         self.banner = tk.Frame(body, bg=PANEL_2, highlightthickness=1, highlightbackground=BORDER)
-        self.banner.pack(fill="x", pady=(18, 0))
-        self.banner_title = tk.Label(self.banner, text="READY", bg=PANEL_2, fg=TEXT, font=("Segoe UI", 17, "bold"), anchor="w")
-        self.banner_title.pack(fill="x", padx=18, pady=(13, 0))
-        self.banner_detail = tk.Label(self.banner, text="Open Arena, wait for Home, then click Get My MTGA Collection.", bg=PANEL_2, fg=MUTED, font=("Segoe UI", 10), anchor="w")
-        self.banner_detail.pack(fill="x", padx=18, pady=(2, 13))
+        self.banner.pack(fill="x", pady=(15, 0))
+        banner_left = tk.Frame(self.banner, bg=PANEL_2)
+        banner_left.pack(side="left", fill="both", expand=True, padx=16, pady=12)
+        self.banner_title = tk.Label(banner_left, text="READY FOR YOUR NEXT SNAPSHOT", bg=PANEL_2, fg=ACCENT, font=("Segoe UI", 10, "bold"), anchor="w")
+        self.banner_title.pack(fill="x")
+        self.banner_detail = tk.Label(banner_left, text="Arena must be open at the Home screen for automatic sync.", bg=PANEL_2, fg=MUTED, font=("Segoe UI", 9), anchor="w", justify="left", wraplength=820)
+        self.banner_detail.pack(fill="x", pady=(3, 0))
         self.progress = ttk.Progressbar(body, mode="determinate", maximum=100)
-        self.progress.pack(fill="x", pady=(10, 0))
+        self.progress.pack(fill="x", pady=(10, 0), ipady=2)
         controls = tk.Frame(body, bg=BG)
         controls.pack(fill="x", pady=(8, 0))
+        self.activity_button = ttk.Button(controls, text="Activity  +", style="Subtle.TButton", command=self._toggle_activity)
+        self.activity_button.pack(side="left")
         self.stop_button = ttk.Button(controls, text="Cancel", style="Danger.TButton", command=self._stop_worker, state="disabled")
         self.stop_button.pack(side="right")
-        ttk.Button(controls, text="Open diagnostics", command=lambda: open_path(self.data_dir / "logs")).pack(side="right", padx=(0, 8))
-        ttk.Button(controls, text="Copy API endpoint", command=self._copy_api_endpoint).pack(side="right", padx=(0, 8))
-        ttk.Button(controls, text="Start local Collection API", command=self._start_bridge).pack(side="right", padx=(0, 8))
-        ttk.Button(controls, text="Open exports", command=lambda: open_path(Path(self.output_path_var.get()))).pack(side="right", padx=(0, 8))
+        ttk.Button(controls, text="Copy URL", style="Subtle.TButton", command=self._copy_api_endpoint).pack(side="right", padx=(6, 0))
+        ttk.Button(controls, text="Local API", style="Subtle.TButton", command=self._start_bridge).pack(side="right", padx=(6, 0))
+        ttk.Button(controls, text="Diagnostics", style="Subtle.TButton", command=lambda: open_path(self.data_dir / "logs")).pack(side="right", padx=(6, 0))
+        ttk.Button(controls, text="Exports", style="Subtle.TButton", command=lambda: open_path(Path(self.output_path_var.get()))).pack(side="right", padx=(6, 0))
 
-        diagnostics = ttk.Frame(body, style="Card.TFrame", padding=10)
-        diagnostics.pack(fill="both", expand=True, pady=(12, 0))
-        self.log_text = tk.Text(diagnostics, height=8, bg=PANEL, fg=MUTED, insertbackground=TEXT, bd=0, relief="flat", font=("Consolas", 9), wrap="word")
-        self.log_text.pack(fill="both", expand=True)
+        self.activity_panel = tk.Frame(body, bg=PANEL, highlightthickness=1, highlightbackground=BORDER)
+        log_inner = tk.Frame(self.activity_panel, bg=PANEL)
+        log_inner.pack(fill="both", expand=True, padx=10, pady=10)
+        self.log_text = tk.Text(log_inner, height=6, bg=PANEL, fg=MUTED, insertbackground=TEXT, bd=0, relief="flat", font=("Consolas", 9), wrap="word", padx=6, pady=4)
+        log_scroll = ttk.Scrollbar(log_inner, orient="vertical", command=self.log_text.yview)
+        self.log_text.configure(yscrollcommand=log_scroll.set)
+        log_scroll.pack(side="right", fill="y")
+        self.log_text.pack(side="left", fill="both", expand=True)
         self.log_text.configure(state="disabled")
         return page
 
     def _build_collection_page(self) -> tk.Frame:
         page = tk.Frame(self.content, bg=BG)
         body = tk.Frame(page, bg=BG)
-        body.pack(fill="both", expand=True, padx=28, pady=24)
-        self._page_header(body, "Collection", "The latest accepted authoritative snapshot. Unknown Arena IDs are retained and marked for mapping review.")
+        body.pack(fill="both", expand=True, padx=30, pady=22)
+        self._page_header(body, "Collection", "Search, sort, and export the latest accepted snapshot. Unknown Arena IDs stay visible for review.")
         tools = tk.Frame(body, bg=BG)
-        tools.pack(fill="x", pady=(0, 10))
+        tools.pack(fill="x", pady=(0, 12))
         self.search_var = tk.StringVar()
         search = ttk.Entry(tools, textvariable=self.search_var)
-        search.pack(side="left", fill="x", expand=True)
+        search.pack(side="left", fill="x", expand=True, ipady=2)
+        ttk.Label(tools, text="Search cards", style="Muted.TLabel").pack(side="left", padx=(0, 8), before=search)
         search.bind("<KeyRelease>", lambda _event: self._refresh_collection())
-        ttk.Button(tools, text="Refresh", command=self._refresh_collection).pack(side="left", padx=(8, 0))
-        ttk.Button(tools, text="Export", command=self._export_current).pack(side="left", padx=(8, 0))
+        ttk.Button(tools, text="Refresh", style="Subtle.TButton", command=self._refresh_collection).pack(side="left", padx=(8, 0))
+        ttk.Button(tools, text="Export files", style="Accent.TButton", command=self._export_current).pack(side="left", padx=(8, 0))
         columns = ("qty", "arena", "name", "set", "collector", "source", "review")
-        self.collection_tree = ttk.Treeview(body, columns=columns, show="headings")
+        table = tk.Frame(body, bg=PANEL, highlightthickness=1, highlightbackground=BORDER)
+        table.pack(fill="both", expand=True)
+        table.grid_rowconfigure(0, weight=1)
+        table.grid_columnconfigure(0, weight=1)
+        self.collection_tree = ttk.Treeview(table, columns=columns, show="headings", selectmode="browse")
+        self.collection_sort_column: Optional[str] = None
+        self.collection_sort_reverse = False
+        self.collection_column_labels: Dict[str, str] = {}
         for key, label, width in (
             ("qty", "Qty", 55), ("arena", "Arena ID", 90), ("name", "Card name", 330),
             ("set", "Set", 70), ("collector", "Collector", 85), ("source", "Source", 115), ("review", "Review", 90),
         ):
-            self.collection_tree.heading(key, text=label)
-            self.collection_tree.column(key, width=width, anchor="w" if key == "name" else "center")
-        self.collection_tree.pack(fill="both", expand=True)
+            self.collection_column_labels[key] = label
+            self.collection_tree.heading(key, text=label, command=lambda column=key: self._sort_collection(column))
+            self.collection_tree.column(key, width=width, minwidth=45 if key != "name" else 160, anchor="w" if key == "name" else "center", stretch=key in ("name", "source"))
+        self.collection_tree.tag_configure("stripe", background="#182432")
+        collection_y = ttk.Scrollbar(table, orient="vertical", command=self.collection_tree.yview)
+        collection_x = ttk.Scrollbar(table, orient="horizontal", command=self.collection_tree.xview)
+        self.collection_tree.configure(yscrollcommand=collection_y.set, xscrollcommand=collection_x.set)
+        self.collection_tree.grid(row=0, column=0, sticky="nsew")
+        collection_y.grid(row=0, column=1, sticky="ns")
+        collection_x.grid(row=1, column=0, sticky="ew")
+        self.collection_empty = tk.Frame(table, bg=PANEL, highlightthickness=1, highlightbackground=BORDER)
+        self.collection_empty_title = ttk.Label(self.collection_empty, text="Your collection will appear here", style="Card.TLabel", font=("Segoe UI", 13, "bold"))
+        self.collection_empty_title.pack(padx=22, pady=(18, 4))
+        self.collection_empty_detail = ttk.Label(self.collection_empty, text="Sync Arena or import a snapshot to start your archive.", style="CardMuted.TLabel")
+        self.collection_empty_detail.pack(padx=22, pady=(0, 12))
+        ttk.Button(self.collection_empty, text="Go to sync", style="Accent.TButton", command=lambda: self._show_page("scan")).pack(pady=(0, 18))
+        self.collection_empty.place(relx=0.5, rely=0.5, anchor="center")
         return page
 
     def _build_history_page(self) -> tk.Frame:
         page = tk.Frame(self.content, bg=BG)
         body = tk.Frame(page, bg=BG)
-        body.pack(fill="both", expand=True, padx=28, pady=24)
-        self._page_header(body, "Snapshot history", "Every accepted full collection snapshot is retained for diagnosis and rollback work.")
+        body.pack(fill="both", expand=True, padx=30, pady=22)
+        self._page_header(body, "Snapshot history", "A reliable record of each accepted full collection snapshot.")
         columns = ("id", "captured", "source", "version", "unique", "copies", "snapshot")
-        self.snapshot_tree = ttk.Treeview(body, columns=columns, show="headings")
+        table = tk.Frame(body, bg=PANEL, highlightthickness=1, highlightbackground=BORDER)
+        table.pack(fill="both", expand=True)
+        table.grid_rowconfigure(0, weight=1)
+        table.grid_columnconfigure(0, weight=1)
+        self.snapshot_tree = ttk.Treeview(table, columns=columns, show="headings", selectmode="browse")
         for key, label, width in (
             ("id", "Row", 55), ("captured", "Captured", 170), ("source", "Source", 120),
             ("version", "MTGA version", 145), ("unique", "IDs", 70), ("copies", "Copies", 75), ("snapshot", "Snapshot ID", 200),
         ):
             self.snapshot_tree.heading(key, text=label)
-            self.snapshot_tree.column(key, width=width, anchor="center")
-        self.snapshot_tree.pack(fill="both", expand=True)
+            self.snapshot_tree.column(key, width=width, minwidth=50, anchor="center", stretch=key in ("captured", "snapshot"))
+        self.snapshot_tree.tag_configure("stripe", background="#182432")
+        history_y = ttk.Scrollbar(table, orient="vertical", command=self.snapshot_tree.yview)
+        history_x = ttk.Scrollbar(table, orient="horizontal", command=self.snapshot_tree.xview)
+        self.snapshot_tree.configure(yscrollcommand=history_y.set, xscrollcommand=history_x.set)
+        self.snapshot_tree.grid(row=0, column=0, sticky="nsew")
+        history_y.grid(row=0, column=1, sticky="ns")
+        history_x.grid(row=1, column=0, sticky="ew")
+        self.history_empty = tk.Frame(table, bg=PANEL, highlightthickness=1, highlightbackground=BORDER)
+        self.history_empty_title = ttk.Label(self.history_empty, text="No snapshots yet", style="Card.TLabel", font=("Segoe UI", 13, "bold"))
+        self.history_empty_title.pack(padx=24, pady=(18, 4))
+        self.history_empty_detail = ttk.Label(self.history_empty, text="Accepted syncs and imports will be kept here.", style="CardMuted.TLabel")
+        self.history_empty_detail.pack(padx=24, pady=(0, 18))
+        self.history_empty.place(relx=0.5, rely=0.5, anchor="center")
         return page
 
     def _build_settings_page(self) -> tk.Frame:
         page = tk.Frame(self.content, bg=BG)
         body = tk.Frame(page, bg=BG)
-        body.pack(fill="both", expand=True, padx=28, pady=24)
-        self._page_header(body, "Settings", "MTGA paths and local-only bridge storage.")
-        panel = ttk.Frame(body, style="Card.TFrame", padding=18)
+        body.pack(fill="both", expand=True, padx=30, pady=22)
+        self._page_header(body, "Settings", "Choose where Arena card data and exported snapshots are read and saved.")
+        panel = tk.Frame(body, bg=PANEL, highlightthickness=1, highlightbackground=BORDER)
         panel.pack(fill="x")
+        panel_inner = tk.Frame(panel, bg=PANEL)
+        panel_inner.pack(fill="x", padx=20, pady=18)
         self.raw_path_var = tk.StringVar(value=str(self.settings.get("arena_raw_path", DEFAULT_RAW_FOLDER)))
         self.output_path_var = tk.StringVar(value=str(self.settings.get("output_path", app_output_dir())))
-        self._path_setting(panel, "Arena card database folder", self.raw_path_var, self._browse_raw)
-        self._path_setting(panel, "Export folder", self.output_path_var, self._browse_output)
+        self._path_setting(panel_inner, "Arena card database folder", self.raw_path_var, self._browse_raw)
+        self._path_setting(panel_inner, "Export folder", self.output_path_var, self._browse_output)
         ttk.Label(
-            panel,
+            panel_inner,
             text="Security: the Arena helper is downloaded unmodified from its public GitHub release, runs only on localhost on a random port, reads collection IDs and quantities, and is stopped after sync. Arena credentials are never collected or uploaded.",
-            style="CardMuted.TLabel", wraplength=820,
-        ).pack(anchor="w", pady=(14, 8))
-        row = tk.Frame(panel, bg=PANEL)
+            style="CardMuted.TLabel", wraplength=820, justify="left",
+        ).pack(anchor="w", pady=(14, 12))
+        self.settings_feedback = ttk.Label(panel_inner, text="", style="CardMuted.TLabel")
+        self.settings_feedback.pack(anchor="w", pady=(0, 8))
+        row = tk.Frame(panel_inner, bg=PANEL)
         row.pack(fill="x")
         ttk.Button(row, text="Open data folder", command=lambda: open_path(self.data_dir)).pack(side="left")
         ttk.Button(row, text="Save settings", style="Accent.TButton", command=self._save_settings).pack(side="right")
         return page
 
     def _path_setting(self, parent: ttk.Frame, label: str, variable: tk.StringVar, command: Any) -> None:
-        ttk.Label(parent, text=label, style="Card.TLabel", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(6, 3))
+        ttk.Label(parent, text=label, style="Card.TLabel", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(8, 5))
         row = tk.Frame(parent, bg=PANEL)
         row.pack(fill="x")
         ttk.Entry(row, textvariable=variable).pack(side="left", fill="x", expand=True)
-        ttk.Button(row, text="Browse", command=command).pack(side="left", padx=(8, 0))
+        ttk.Button(row, text="Browse…", style="Subtle.TButton", command=command).pack(side="left", padx=(8, 0))
+
+    def _resize_scan_copy(self, event: tk.Event) -> None:
+        card_width = max(230, (int(event.width) - 48) // 2 - 44)
+        self.auto_description.configure(wraplength=card_width)
+        self.manual_description.configure(wraplength=card_width)
+        self.banner_detail.configure(wraplength=max(320, int(event.width) - 205))
+
+    def _bind_card_hover(self, panel: tk.Frame, idle_color: str, hover_color: str) -> None:
+        def attach(widget: tk.Widget) -> None:
+            widget.bind("<Enter>", lambda _event: panel.configure(highlightbackground=hover_color), add="+")
+            widget.bind("<Leave>", lambda _event: panel.configure(highlightbackground=idle_color), add="+")
+            for child in widget.winfo_children():
+                attach(child)
+
+        attach(panel)
+
+    def _toggle_activity(self, open_state: Optional[bool] = None) -> None:
+        self.activity_open = not self.activity_open if open_state is None else bool(open_state)
+        if self.activity_open:
+            self.activity_panel.pack(fill="x", pady=(8, 0))
+            self.activity_button.configure(text="Activity  −")
+        else:
+            self.activity_panel.pack_forget()
+            self.activity_button.configure(text="Activity  +")
+
+    def _schedule_arena_presence(self) -> None:
+        if self._closing:
+            return
+
+        def check() -> None:
+            try:
+                result = subprocess.run(
+                    ["tasklist.exe", "/FI", "IMAGENAME eq MTGA.exe", "/FO", "CSV", "/NH"],
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                    creationflags=int(getattr(subprocess, "CREATE_NO_WINDOW", 0)),
+                    check=False,
+                )
+                running = any(line.strip().casefold().startswith('"mtga.exe"') for line in result.stdout.splitlines())
+                self.events.put(("arena_presence", {"running": running}))
+            except (OSError, subprocess.SubprocessError) as exc:
+                self.events.put(("arena_presence", {"running": None, "error": str(exc)}))
+
+        threading.Thread(target=check, name="arena-presence", daemon=True).start()
+        self.after(5000, self._schedule_arena_presence)
+
+    def _set_arena_presence(self, running: Optional[bool], error: str = "") -> None:
+        self.arena_running = running
+        if running is True:
+            color, title, hint = GOOD, "ARENA RUNNING", "Stay on the Home screen before syncing"
+            if self.banner_title.cget("text").startswith("READY"):
+                self.banner_detail.configure(text="Arena detected. Wait for the Home screen, then sync your collection.")
+        elif running is False:
+            color, title, hint = WARN, "ARENA NOT OPEN", "Open MTG Arena to enable sync"
+        else:
+            color, title, hint = MUTED, "ARENA STATUS UNKNOWN", "Sync can still try the live connection"
+            if error:
+                self._append_log(time.strftime("%H:%M:%S"), "WARN", f"Could not check for Arena: {error}")
+        self.arena_dot.itemconfigure(1, fill=color)
+        self.arena_status_label.configure(text=title, fg=color)
+        self.arena_status_hint.configure(text=hint)
+
+    def _on_close(self) -> None:
+        self._closing = True
+        self.cancel_event.set()
+        self.destroy()
 
     def _show_page(self, key: str) -> None:
         for page in self.pages.values():
             page.pack_forget()
         self.pages[key].pack(fill="both", expand=True)
+        self.current_page = key
+        page_titles = {
+            "scan": "COLLECTION WORKSPACE",
+            "collection": "COLLECTION  /  CARDS",
+            "history": "COLLECTION  /  SNAPSHOTS",
+            "settings": "PREFERENCES  /  STORAGE",
+        }
+        self.topbar_title.configure(text=page_titles.get(key, "COLLECTION WORKSPACE"))
         for name, button in self.nav_buttons.items():
-            button.configure(bg=PANEL if name == key else "#0C1118", fg=TEXT if name == key else MUTED)
+            active = name == key
+            button.configure(bg=PANEL if active else SIDEBAR, fg=TEXT if active else MUTED)
+            self.nav_indicators[name].configure(bg=ACCENT if active else SIDEBAR)
 
     def _browse_manual(self) -> None:
         value = filedialog.askopenfilename(title="Choose collection JSON", filetypes=[("JSON files", "*.json"), ("All files", "*.*")])
@@ -409,18 +616,27 @@ class App(tk.Tk):
     def _save_settings(self) -> None:
         self.settings.set("arena_raw_path", self.raw_path_var.get().strip())
         self.settings.set("output_path", self.output_path_var.get().strip())
-        self.settings.save()
-        self._set_banner("SETTINGS SAVED", str(self.settings.path), "good")
+        try:
+            self.settings.save()
+        except OSError as exc:
+            messagebox.showerror(APP_NAME, f"Could not save settings:\n{exc}")
+            return
+        if hasattr(self, "settings_feedback"):
+            self.settings_feedback.configure(text=f"Saved to {self.settings.path}", foreground=GOOD)
+        if self.current_page == "scan":
+            self._set_banner("SETTINGS SAVED", str(self.settings.path), "good")
 
-    def _start_thread(self, target: Any) -> None:
+    def _start_thread(self, target: Any, button_text: str) -> None:
         if self.worker and self.worker.is_alive():
             messagebox.showwarning(APP_NAME, "Another operation is already running.")
             return
         self.cancel_event.clear()
         self.progress["value"] = 0
+        self.memory_button.configure(text=button_text)
         self.memory_button.configure(state="disabled")
         self.manual_button.configure(state="disabled")
         self.stop_button.configure(state="normal")
+        self._toggle_activity(True)
         self.worker = threading.Thread(target=target, daemon=True)
         self.worker.start()
 
@@ -479,7 +695,7 @@ class App(tk.Tk):
                 self.reporter.log(traceback.format_exc(), "DEBUG")
                 self.reporter.emit("error", message=str(exc))
 
-        self._start_thread(worker)
+        self._start_thread(worker, "Syncing collection…")
 
     def _start_manual_import(self) -> None:
         path = Path(self.manual_path_var.get().strip())
@@ -518,7 +734,7 @@ class App(tk.Tk):
                     self.store.fail_session(scan_id, str(exc))
                 self.reporter.emit("error", message=str(exc))
 
-        self._start_thread(worker)
+        self._start_thread(worker, "Importing snapshot…")
 
     def _finish_snapshot(
         self,
@@ -618,16 +834,22 @@ class App(tk.Tk):
 
     def _export_current(self) -> None:
         try:
+            rows = self.store.collection_rows()
+            if not rows:
+                self._set_banner("NOTHING TO EXPORT", "Sync Arena or import a snapshot first.", "warn")
+                return
             latest = self.store.latest_snapshot()
             report = {"application": APP_NAME, "version": APP_VERSION, "mode": "manual-export", "latestSnapshot": latest}
-            paths = write_collection_exports(self.store.collection_rows(), Path(self.output_path_var.get()), report, self.reporter)
+            paths = write_collection_exports(rows, Path(self.output_path_var.get()), report, self.reporter)
             self._set_banner("EXPORT COMPLETE", str(paths["json"]), "good")
         except Exception as exc:
             messagebox.showerror(APP_NAME, str(exc))
 
     def _set_banner(self, title: str, detail: str, kind: str = "normal") -> None:
-        colors = {"normal": TEXT, "good": GOOD, "warn": WARN, "error": DANGER, "review": PURPLE}
-        self.banner_title.configure(text=title, fg=colors.get(kind, TEXT))
+        colors = {"normal": ACCENT, "good": GOOD, "warn": WARN, "error": DANGER, "review": PURPLE}
+        color = colors.get(kind, ACCENT)
+        self.banner.configure(highlightbackground=(BORDER if kind == "normal" else color))
+        self.banner_title.configure(text=title, fg=color)
         self.banner_detail.configure(text=detail)
 
     def _append_log(self, timestamp: str, level: str, message: str) -> None:
@@ -669,11 +891,15 @@ class App(tk.Tk):
                     self._set_banner("SYNC FAILED", payload.get("message", "Unknown error"), "error")
                     self._append_log(time.strftime("%H:%M:%S"), "ERROR", payload.get("message", "Unknown error"))
                     self._worker_done()
+                elif event_type == "arena_presence":
+                    self._set_arena_presence(payload.get("running"), payload.get("error", ""))
         except queue.Empty:
             pass
-        self.after(80, self._poll_events)
+        if not self._closing:
+            self.after(80, self._poll_events)
 
     def _worker_done(self) -> None:
+        self.memory_button.configure(text="Sync my collection   →")
         self.memory_button.configure(state="normal")
         self.manual_button.configure(state="normal")
         self.stop_button.configure(state="disabled")
@@ -695,26 +921,74 @@ class App(tk.Tk):
         for item in self.collection_tree.get_children():
             self.collection_tree.delete(item)
         search = self.search_var.get() if hasattr(self, "search_var") else ""
-        for row in self.store.collection_rows(search=search):
+        rows = self.store.collection_rows(search=search)
+        for index, row in enumerate(rows):
             review = "Review" if row.get("needs_review") or row.get("printing_uncertain") else ""
             self.collection_tree.insert(
                 "", "end",
                 values=(row["quantity"], row.get("arena_id", ""), row["name"], row["set_code"], row["collector_number"], row["source_method"], review),
+                tags=(("stripe",) if index % 2 else ()),
             )
+        if rows:
+            self.collection_empty.place_forget()
+        else:
+            if self.store.metrics().get("unique_entries", 0):
+                self.collection_empty_title.configure(text="No matching cards")
+                self.collection_empty_detail.configure(text=f"No cards matched {search!r}. Clear the search to see your full collection.")
+            else:
+                self.collection_empty_title.configure(text="Your collection will appear here")
+                self.collection_empty_detail.configure(text="Sync Arena or import a snapshot to start your archive.")
+            self.collection_empty.place(relx=0.5, rely=0.5, anchor="center")
+        if self.collection_sort_column:
+            self._sort_collection(self.collection_sort_column, toggle=False)
+
+    def _sort_collection(self, column: str, *, toggle: bool = True) -> None:
+        if toggle:
+            if self.collection_sort_column == column:
+                self.collection_sort_reverse = not self.collection_sort_reverse
+            else:
+                self.collection_sort_column = column
+                self.collection_sort_reverse = False
+        if column not in self.collection_column_labels:
+            return
+        items = [(self.collection_tree.set(item, column), item) for item in self.collection_tree.get_children("")]
+
+        def sort_key(item: tuple[str, str]) -> tuple[int, Any]:
+            value = item[0]
+            if column in ("qty", "arena"):
+                try:
+                    return (0, int(value))
+                except (TypeError, ValueError):
+                    pass
+            return (1, value.casefold())
+
+        items.sort(key=sort_key, reverse=self.collection_sort_reverse)
+        for index, (_value, item) in enumerate(items):
+            self.collection_tree.move(item, "", index)
+            self.collection_tree.item(item, tags=(("stripe",) if index % 2 else ()))
+        for key, label in self.collection_column_labels.items():
+            arrow = "  ↑" if key == column and not self.collection_sort_reverse else ("  ↓" if key == column else "")
+            self.collection_tree.heading(key, text=label + arrow)
 
     def _refresh_snapshots(self) -> None:
         if not hasattr(self, "snapshot_tree"):
             return
         for item in self.snapshot_tree.get_children():
             self.snapshot_tree.delete(item)
-        for row in self.store.snapshot_rows():
+        rows = self.store.snapshot_rows()
+        for index, row in enumerate(rows):
             self.snapshot_tree.insert(
                 "", "end",
                 values=(
                     row["snapshot_row_id"], row["captured_at"], row["source"], row.get("mtga_client_version") or "",
                     row["unique_cards"], row["total_copies"], row["snapshot_id"],
                 ),
+                tags=(("stripe",) if index % 2 else ()),
             )
+        if rows:
+            self.history_empty.place_forget()
+        else:
+            self.history_empty.place(relx=0.5, rely=0.5, anchor="center")
 
 
 def main() -> int:

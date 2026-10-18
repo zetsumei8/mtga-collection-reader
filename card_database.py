@@ -81,21 +81,66 @@ def load_local_database(raw_path: Path, reporter: Any) -> Dict[int, Dict[str, st
             connection = sqlite3.connect(f"file:{file_path}?mode=ro", uri=True)
             cursor = connection.cursor()
             tables = {row[0] for row in cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-            if "Cards" not in tables or "Localizations" not in tables:
+            table_names = {name.casefold(): name for name in tables}
+            if "cards" not in table_names:
                 continue
+
+            # Arena moved English strings out of Localizations(Id, Text, Format)
+            # into a dedicated Localizations_enUS(LocId, Formatted, Loc) table.
             localization: Dict[int, str] = {}
-            try:
-                cursor.execute("SELECT Id, Text FROM Localizations WHERE Format LIKE '%en-US%' OR Format IS NULL")
-            except sqlite3.Error:
-                cursor.execute("SELECT Id, Text FROM Localizations")
-            for localization_id, text in cursor.fetchall():
-                if text:
-                    localization[int(localization_id)] = str(text)
+            for localization_table in ("localizations_enus", "localizations"):
+                actual_table = table_names.get(localization_table)
+                if actual_table is None:
+                    continue
+                columns = {
+                    str(row[1]).casefold(): str(row[1])
+                    for row in cursor.execute(f'PRAGMA table_info("{actual_table}")')
+                }
+                id_column = columns.get("locid") or columns.get("id")
+                text_column = columns.get("loc") or columns.get("text")
+                if not id_column or not text_column:
+                    continue
+
+                quoted_table = '"' + actual_table.replace('"', '""') + '"'
+                quoted_id = '"' + id_column.replace('"', '""') + '"'
+                quoted_text = '"' + text_column.replace('"', '""') + '"'
+                query = f"SELECT {quoted_id}, {quoted_text} FROM {quoted_table}"
+                formatted_column = columns.get("formatted")
+                format_column = columns.get("format")
+                if formatted_column:
+                    quoted_formatted = '"' + formatted_column.replace('"', '""') + '"'
+                    query += f" WHERE {quoted_formatted} = 1"
+                elif format_column:
+                    quoted_format = '"' + format_column.replace('"', '""') + '"'
+                    query += f" WHERE {quoted_format} LIKE '%en-US%' OR {quoted_format} IS NULL"
+
+                try:
+                    rows = cursor.execute(query).fetchall()
+                except sqlite3.Error as exc:
+                    _call(reporter, "log", f"Could not read {actual_table} in {file_path.name}: {exc}", "WARN")
+                    continue
+                if rows:
+                    for localization_id, text in rows:
+                        if text:
+                            localization[int(localization_id)] = str(text)
+                    break
+
+            if not localization:
+                continue
 
             columns = [row[1] for row in cursor.execute("PRAGMA table_info(Cards)")]
-            set_column = "ExpansionCode" if "ExpansionCode" in columns else "NULL"
-            collector_column = "CollectorNumber" if "CollectorNumber" in columns else "NULL"
-            cursor.execute(f"SELECT GrpId, TitleId, {set_column}, {collector_column} FROM Cards")
+            card_columns = {str(column).casefold(): str(column) for column in columns}
+            group_column = card_columns.get("grpid") or card_columns.get("arenaid")
+            title_column = card_columns.get("titleid")
+            if not group_column or not title_column:
+                continue
+            set_column = card_columns.get("expansioncode")
+            collector_column = card_columns.get("collectornumber")
+            quoted_group = '"' + group_column.replace('"', '""') + '"'
+            quoted_title = '"' + title_column.replace('"', '""') + '"'
+            selected_set = '"' + set_column.replace('"', '""') + '"' if set_column else "NULL"
+            selected_collector = '"' + collector_column.replace('"', '""') + '"' if collector_column else "NULL"
+            cursor.execute(f"SELECT {quoted_group}, {quoted_title}, {selected_set}, {selected_collector} FROM Cards")
             for group_id, title_id, set_code, collector_number in cursor.fetchall():
                 name = localization.get(int(title_id))
                 if not name:
