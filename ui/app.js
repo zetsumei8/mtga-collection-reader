@@ -3,7 +3,7 @@
 
   const byId = (id) => document.getElementById(id);
   const PAGE_NAMES = { sync: "SYNC", collection: "LIBRARY", history: "SNAPSHOTS", settings: "SETTINGS" };
-  const state = { backend: null, page: "sync", search: "", reviewOnly: false, offset: 0, pageSize: 80, sort: "name", reverse: false, total: 0, toastTimer: 0, searchTimer: 0, logs: [] };
+  const state = { backend: null, page: "sync", search: "", reviewOnly: false, offset: 0, pageSize: 80, sort: "name", reverse: false, total: 0, toastTimer: 0, searchTimer: 0, logs: [], busy: false };
 
   function call(method, ...args) {
     return new Promise((resolve, reject) => {
@@ -47,22 +47,43 @@
     const sideLed = byId("sideLed");
     const mainLed = byId("mainLed");
     const chip = byId("connectionChip");
-    let title, hint, connection, css;
+    let title, hint, connection, css, heroHint;
     if (running === true) {
       title = "ARENA RUNNING";
       hint = "Stay on the Home screen to sync";
       connection = "Arena is open";
       css = "is-running";
+      heroHint = "Arena is open. Sign in and wait for the Home screen before syncing.";
+      byId("routeArena").className = "route-step is-done";
+      byId("routeHome").className = "route-step is-current";
+      byId("routeCapture").className = "route-step";
+      byId("routeArenaState").textContent = "DETECTED";
+      byId("routeHomeState").textContent = "NEXT";
+      byId("routeCaptureState").textContent = "READY";
     } else if (running === false) {
       title = "ARENA NOT OPEN";
       hint = "Open MTG Arena to enable sync";
       connection = "Arena is closed";
       css = "is-offline";
+      heroHint = "Open Arena, sign in, and wait for the Home screen.";
+      byId("routeArena").className = "route-step is-current";
+      byId("routeHome").className = "route-step";
+      byId("routeCapture").className = "route-step";
+      byId("routeArenaState").textContent = "WAITING";
+      byId("routeHomeState").textContent = "NEXT";
+      byId("routeCaptureState").textContent = "READY";
     } else {
       title = "ARENA STATUS UNKNOWN";
       hint = "Sync can still try the live connection";
       connection = "Status unavailable";
       css = "is-checking";
+      heroHint = "Arena status is unavailable. Sync can still try the live connection.";
+      byId("routeArena").className = "route-step is-current";
+      byId("routeHome").className = "route-step";
+      byId("routeCapture").className = "route-step";
+      byId("routeArenaState").textContent = "CHECK";
+      byId("routeHomeState").textContent = "NEXT";
+      byId("routeCaptureState").textContent = "READY";
     }
     byId("sideArena").textContent = title;
     byId("sideArenaHint").textContent = hint;
@@ -70,6 +91,7 @@
     sideLed.className = `status-led ${css}`;
     mainLed.className = `status-led ${css}`;
     chip.title = error || hint;
+    byId("syncHint").textContent = error ? `${heroHint} ${error}` : heroHint;
     if (error) addLog({ timestamp: new Date().toLocaleTimeString(), level: "WARN", message: `Could not check for Arena: ${error}` });
   }
 
@@ -89,9 +111,27 @@
     byId("ownedCopies").textContent = formatNumber(metrics.owned_copies);
     byId("uniqueCards").textContent = formatNumber(metrics.unique_entries);
     byId("reviewCount").textContent = formatNumber(metrics.needs_review);
+    byId("allCardCount").textContent = formatNumber(metrics.unique_entries);
+    byId("reviewCardCount").textContent = formatNumber(metrics.review_cards ?? metrics.needs_review);
     byId("collectionCaption").textContent = metrics.unique_entries
       ? `${formatNumber(metrics.unique_entries)} card records kept in your private Arena archive.`
       : "A complete, searchable record of the cards you own in Arena.";
+  }
+
+  function showCardDetail(row) {
+    byId("cardDetailName").textContent = row.name || `Unknown Arena card ${row.arena_id || ""}`;
+    const set = row.set_code || "UNKNOWN SET";
+    const printing = row.collector_number ? `No. ${row.collector_number}` : "Printing not identified";
+    byId("cardDetailSet").textContent = `${set}  ·  ${printing}`;
+    byId("cardDetailQuantity").textContent = formatNumber(row.quantity);
+    byId("cardDetailArenaId").textContent = row.arena_id ?? "—";
+    const review = Boolean(row.needs_review || row.printing_uncertain);
+    byId("cardDetailStatus").textContent = review ? "Needs review" : "Matched";
+    byId("cardDetailReview").hidden = !review;
+    byId("cardDetailReview").textContent = row.review_reason || (row.printing_uncertain ? "The card identity is known, but the exact printing could not be confirmed." : "This Arena card ID needs a closer look.");
+    byId("cardDetailFirstSeen").textContent = row.first_seen_at ? `First seen · ${formatDate(row.first_seen_at)}` : "First seen · —";
+    byId("cardDetailLastSeen").textContent = row.last_seen_at ? `Last seen · ${formatDate(row.last_seen_at)}` : "Last seen · —";
+    byId("cardDialog").showModal();
   }
 
   function renderHistory(rows = []) {
@@ -160,6 +200,12 @@
       pill.append(dot, label);
       status.append(pill);
       tr.append(card, printing, quantity, status);
+      tr.tabIndex = 0;
+      tr.setAttribute("aria-label", `View archive details for ${row.name || `Arena card ${row.arena_id || ""}`}`);
+      tr.addEventListener("click", () => showCardDetail(row));
+      tr.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") { event.preventDefault(); showCardDetail(row); }
+      });
       body.append(tr);
     }
 
@@ -173,6 +219,16 @@
     const first = state.total ? state.offset + 1 : 0;
     const last = Math.min(state.offset + state.pageSize, state.total);
     byId("resultCount").textContent = `${formatNumber(state.total)} cards`;
+    document.querySelectorAll(".filter-tab").forEach((button) => {
+      const active = (button.dataset.filter === "review") === state.reviewOnly;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+    document.querySelectorAll("#collectionTable th[data-sort]").forEach((header) => {
+      const marker = header.querySelector(".sort-indicator");
+      if (marker) marker.textContent = header.dataset.sort === state.sort ? (state.reverse ? "↓" : "↑") : "";
+    });
+    byId("clearSearch").hidden = !state.search;
     byId("pageSummary").textContent = `Showing ${formatNumber(first)}–${formatNumber(last)} of ${formatNumber(state.total)}`;
     byId("pagePrev").disabled = state.offset <= 0;
     byId("pageNext").disabled = state.offset + state.pageSize >= state.total;
@@ -191,6 +247,10 @@
     byId("versionLabel").textContent = data.version || "5.2.5";
     if (data.arena_running !== undefined) setArena(data.arena_running, data.arena_error || "");
     if (data.status) setStatus(data.status.title, data.status.detail, data.status.kind);
+    const latest = data.latest_snapshot;
+    byId("lastCapture").textContent = latest?.captured_at
+      ? `${formatDate(latest.captured_at)} · ${formatNumber(latest.unique_cards)} cards`
+      : "No snapshot yet";
     if (state.page === "collection") await loadCollection();
     if (state.page === "history") await loadHistory();
   }
@@ -212,14 +272,21 @@
   }
 
   function setBusy(busy, label = "Working…") {
+    state.busy = busy;
     byId("syncButton").disabled = busy;
     byId("importSnapshot").disabled = busy || !byId("snapshotPath").value.trim();
     byId("chooseSnapshot").disabled = busy;
     byId("cancelButton").hidden = !busy;
     byId("taskProgress").hidden = !busy;
+    byId("syncButton").querySelector(".button-label").textContent = busy ? "Working…" : "Sync collection";
     if (busy) {
       byId("progressFill").style.width = "0%";
       byId("progressLabel").textContent = label;
+      byId("routeCapture").className = "route-step is-current";
+      byId("routeCaptureState").textContent = "WORKING";
+    } else {
+      byId("routeCapture").className = "route-step";
+      byId("routeCaptureState").textContent = "READY";
     }
   }
 
@@ -228,9 +295,11 @@
     if (type === "log") addLog(payload);
     else if (type === "status") setStatus(payload.title, payload.detail, payload.kind);
     else if (type === "stage") {
+      setBusy(true, payload.name || "Working…");
       setStatus(payload.name, payload.detail, "working");
       byId("progressLabel").textContent = payload.name || "Working…";
     } else if (type === "progress") {
+      setBusy(true, payload.label || "Working…");
       const percent = Math.max(0, Math.min(100, Number(payload.percent || 0)));
       byId("progressFill").style.width = `${percent}%`;
       if (payload.label) byId("progressLabel").textContent = payload.label;
@@ -277,6 +346,7 @@
     byId("syncButton").addEventListener("click", () => safely(async () => {
       const saved = await call("saveSettings", byId("rawPath").value, byId("exportPath").value);
       if (!saved) return;
+      setBusy(true, "Starting collection capture…");
       state.backend.startSync();
     }));
     byId("cancelButton").addEventListener("click", () => state.backend?.cancel());
@@ -285,7 +355,10 @@
       const value = await call("chooseSnapshot");
       if (value) { byId("snapshotPath").value = value; byId("importSnapshot").disabled = false; }
     }));
-    byId("importSnapshot").addEventListener("click", () => safely(() => state.backend.importSnapshot(byId("snapshotPath").value.trim())));
+    byId("importSnapshot").addEventListener("click", () => safely(() => {
+      setBusy(true, "Reading saved snapshot…");
+      state.backend.importSnapshot(byId("snapshotPath").value.trim());
+    }));
     byId("exportCurrent").addEventListener("click", () => safely(() => state.backend.exportCurrent()));
     byId("openExports").addEventListener("click", () => safely(() => state.backend.openExports()));
     byId("browseRaw").addEventListener("click", () => safely(async () => { const value = await call("browseRaw", byId("rawPath").value); if (value) byId("rawPath").value = value; }));
@@ -301,9 +374,17 @@
       window.clearTimeout(state.searchTimer);
       state.searchTimer = window.setTimeout(() => safely(loadCollection), 140);
     });
-    byId("reviewFilter").addEventListener("change", () => { state.reviewOnly = byId("reviewFilter").value === "review"; state.offset = 0; safely(loadCollection); });
+    document.querySelectorAll(".filter-tab").forEach((button) => button.addEventListener("click", () => {
+      state.reviewOnly = button.dataset.filter === "review"; state.offset = 0; safely(loadCollection);
+    }));
+    byId("clearSearch").addEventListener("click", () => {
+      byId("cardSearch").value = ""; state.search = ""; state.offset = 0;
+      byId("clearSearch").hidden = true; byId("cardSearch").focus(); safely(loadCollection);
+    });
     byId("pagePrev").addEventListener("click", () => { state.offset = Math.max(0, state.offset - state.pageSize); safely(loadCollection); });
     byId("pageNext").addEventListener("click", () => { if (state.offset + state.pageSize < state.total) { state.offset += state.pageSize; safely(loadCollection); } });
+    byId("emptySync").addEventListener("click", () => showPage("sync"));
+    byId("historySync").addEventListener("click", () => showPage("sync"));
     document.querySelectorAll("#collectionTable th[data-sort]").forEach((header) => header.addEventListener("click", () => {
       const column = header.dataset.sort;
       if (column === state.sort) state.reverse = !state.reverse; else { state.sort = column; state.reverse = false; }
@@ -330,17 +411,14 @@
     }));
     byId("confirmKeep").addEventListener("click", () => { byId("confirmDialog").close(); state.backend?.resolveConfirmation(false); });
     byId("confirmReplace").addEventListener("click", () => { byId("confirmDialog").close(); state.backend?.resolveConfirmation(true); });
-    byId("vaultStage").addEventListener("pointermove", (event) => {
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-      const bounds = event.currentTarget.getBoundingClientRect();
-      const x = (event.clientX - bounds.left) / bounds.width - .5;
-      const y = (event.clientY - bounds.top) / bounds.height - .5;
-      event.currentTarget.style.setProperty("--tilt-y", `${x * 8}deg`);
-      event.currentTarget.style.setProperty("--tilt-x", `${-y * 7}deg`);
-    });
-    byId("vaultStage").addEventListener("pointerleave", (event) => {
-      event.currentTarget.style.setProperty("--tilt-x", "0deg");
-      event.currentTarget.style.setProperty("--tilt-y", "0deg");
+    byId("closeCardDialog").addEventListener("click", () => byId("cardDialog").close());
+    byId("closeCardDetails").addEventListener("click", () => byId("cardDialog").close());
+    document.addEventListener("keydown", (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        if (state.page !== "collection") showPage("collection");
+        window.setTimeout(() => byId("cardSearch").focus(), 40);
+      }
     });
   }
 

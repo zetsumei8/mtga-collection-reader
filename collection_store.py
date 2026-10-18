@@ -711,11 +711,17 @@ class CollectionStore:
             term = f"%{search.strip()}%"
             params.extend([term, term, term, term])
         if review_only:
-            clauses.append("needs_review=1")
+            clauses.append(
+                "(needs_review=1 OR printing_uncertain=1 OR EXISTS ("
+                "SELECT 1 FROM review_items WHERE review_items.card_key=cards.card_key "
+                "AND review_items.status='open'))"
+            )
         where = " WHERE " + " AND ".join(clauses) if clauses else ""
         query = (
             "SELECT card_key, arena_id, name, set_code, collector_number, quantity, confidence, "
-            "needs_review, printing_uncertain, first_seen_at, last_seen_at, source_method "
+            "needs_review, printing_uncertain, first_seen_at, last_seen_at, source_method, "
+            "(SELECT reason FROM review_items WHERE review_items.card_key=cards.card_key "
+            "AND review_items.status='open' ORDER BY review_items.review_id DESC LIMIT 1) AS review_reason "
             f"FROM cards{where} ORDER BY name COLLATE NOCASE, set_code, collector_number"
         )
         with self._lock, self._transaction() as connection:
@@ -747,10 +753,15 @@ class CollectionStore:
             open_reviews = connection.execute(
                 "SELECT COUNT(*) FROM review_items WHERE status='open'"
             ).fetchone()[0]
+            open_review_cards = connection.execute(
+                "SELECT COUNT(DISTINCT card_key) FROM review_items WHERE status='open'"
+            ).fetchone()[0]
+            flagged_cards = max(int(row["needs_review"]), int(open_review_cards))
             return {
                 "unique_entries": int(row["unique_entries"]),
                 "owned_copies": int(row["owned_copies"]),
                 "needs_review": max(int(row["needs_review"]), int(open_reviews)),
+                "review_cards": flagged_cards,
             }
 
     def clear_collection(self) -> None:

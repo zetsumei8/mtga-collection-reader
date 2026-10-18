@@ -171,9 +171,11 @@ class ReaderWindow(QMainWindow):
         QTimer.singleShot(180, self.check_arena)
 
     def bootstrap(self) -> Dict[str, Any]:
+        recent_snapshots = self.store.snapshot_rows(limit=1)
         return {
             "version": self.core.APP_VERSION,
             "metrics": self.store.metrics(),
+            "latest_snapshot": recent_snapshots[0] if recent_snapshots else None,
             "settings": {
                 "arena_raw_path": str(self.settings.get("arena_raw_path", self.core.DEFAULT_RAW_FOLDER)),
                 "output_path": str(self.settings.get("output_path", self.core.app_output_dir())),
@@ -189,7 +191,10 @@ class ReaderWindow(QMainWindow):
     ) -> Dict[str, Any]:
         rows = self.store.collection_rows(search=search)
         if review_only:
-            rows = [row for row in rows if row.get("needs_review") or row.get("printing_uncertain")]
+            rows = [
+                row for row in rows
+                if row.get("needs_review") or row.get("printing_uncertain") or row.get("review_reason")
+            ]
         sort_fields = {
             "name": "name",
             "set_code": "set_code",
