@@ -17,6 +17,8 @@
     "ui/assets/capture-panel-raster.png",
     "ui/assets/control-primary-raster.png",
     "ui/assets/control-secondary-raster.png",
+    "ui/assets/archive-surface-raster.png",
+    "ui/assets/control-primary-modern.png",
     "daemon_provider.py",
     "collection_store.py",
     "card_database.py",

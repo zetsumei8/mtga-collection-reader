@@ -60,7 +60,7 @@
       byId("routeCapture").className = "route-step";
       byId("routeArenaState").textContent = "DETECTED";
       byId("routeHomeState").textContent = "NEXT";
-      byId("routeCaptureState").textContent = "READY";
+      byId("routeCaptureState").textContent = "WHEN HOME";
     } else if (running === false) {
       title = "ARENA NOT OPEN";
       hint = "Open MTG Arena to enable sync";
@@ -69,10 +69,10 @@
       heroHint = "Open Arena, sign in, and wait for the Home screen.";
       byId("routeArena").className = "route-step is-current";
       byId("routeHome").className = "route-step";
-      byId("routeCapture").className = "route-step";
+      byId("routeCapture").className = "route-step is-locked";
       byId("routeArenaState").textContent = "WAITING";
       byId("routeHomeState").textContent = "NEXT";
-      byId("routeCaptureState").textContent = "READY";
+      byId("routeCaptureState").textContent = "LOCKED";
     } else {
       title = "ARENA STATUS UNKNOWN";
       hint = "Sync can still try the live connection";
@@ -84,7 +84,7 @@
       byId("routeCapture").className = "route-step";
       byId("routeArenaState").textContent = "CHECK";
       byId("routeHomeState").textContent = "NEXT";
-      byId("routeCaptureState").textContent = "READY";
+      byId("routeCaptureState").textContent = "WHEN HOME";
     }
     byId("sideArena").textContent = title.charAt(0) + title.slice(1).toLowerCase();
     byId("sideArenaHint").textContent = hint;
