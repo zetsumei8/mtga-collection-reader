@@ -2,7 +2,7 @@
   "use strict";
 
   const byId = (id) => document.getElementById(id);
-  const PAGE_NAMES = { sync: "SYNC", collection: "LIBRARY", history: "SNAPSHOTS", settings: "SETTINGS" };
+  const PAGE_NAMES = { sync: "Sync", collection: "Library", history: "Snapshots", settings: "Settings" };
   const state = { backend: null, page: "sync", search: "", reviewOnly: false, offset: 0, pageSize: 80, sort: "name", reverse: false, total: 0, toastTimer: 0, searchTimer: 0, logs: [], busy: false };
 
   function call(method, ...args) {
@@ -37,7 +37,8 @@
   }
 
   function setStatus(title, detail, kind = "ready") {
-    byId("statusTitle").textContent = String(title || "READY TO SYNC").toUpperCase();
+    const readableTitle = String(title || "Ready to sync").toLowerCase();
+    byId("statusTitle").textContent = readableTitle.charAt(0).toUpperCase() + readableTitle.slice(1);
     byId("statusDetail").textContent = detail || "";
     const led = byId("activityLed");
     led.className = `status-led ${kind === "error" ? "is-error" : kind === "warn" ? "is-offline" : kind === "working" ? "is-checking" : "is-ready"}`;
@@ -85,7 +86,7 @@
       byId("routeHomeState").textContent = "NEXT";
       byId("routeCaptureState").textContent = "READY";
     }
-    byId("sideArena").textContent = title;
+    byId("sideArena").textContent = title.charAt(0) + title.slice(1).toLowerCase();
     byId("sideArenaHint").textContent = hint;
     byId("connectionText").textContent = connection;
     sideLed.className = `status-led ${css}`;
