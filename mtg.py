@@ -186,8 +186,8 @@ class App(tk.Tk):
         style.configure("Muted.TLabel", background=BG, foreground=MUTED)
         style.configure("Card.TLabel", background=PANEL, foreground=TEXT)
         style.configure("CardMuted.TLabel", background=PANEL, foreground=MUTED)
-        style.configure("Hero.TLabel", background="#121B20", foreground=TEXT)
-        style.configure("HeroMuted.TLabel", background="#121B20", foreground="#A7B8B4")
+        style.configure("Hero.TLabel", background="#111A20", foreground=TEXT)
+        style.configure("HeroMuted.TLabel", background="#111A20", foreground="#A7B8B4")
         style.configure("Manual.TLabel", background=BG, foreground=TEXT)
         style.configure("Title.TLabel", background=BG, foreground=TEXT, font=("Segoe UI", 27, "bold"))
         style.configure("Metric.TLabel", background=BG, foreground=TEXT, font=("Segoe UI", 22, "bold"))
@@ -203,11 +203,21 @@ class App(tk.Tk):
         style.configure("Treeview.Heading", background=PANEL_2, foreground=MUTED, font=("Segoe UI", 9, "bold"), padding=(8, 9), relief="flat")
         style.map("Treeview.Heading", background=[("active", "#26394A")], foreground=[("active", TEXT)])
         style.map("Treeview", background=[("selected", "#24444A")], foreground=[("selected", TEXT)])
-        style.configure("TEntry", fieldbackground=PANEL_2, foreground=TEXT, insertcolor=TEXT, padding=(9, 8), borderwidth=0)
-        style.map("TEntry", fieldbackground=[("focus", "#202F3E")])
+        style.configure(
+            "TEntry", fieldbackground=PANEL_2, foreground=TEXT, insertcolor=TEXT,
+            padding=(9, 8), borderwidth=1, relief="flat", bordercolor=BORDER,
+            lightcolor=BORDER, darkcolor=BORDER, focuscolor="#4C988A",
+        )
+        style.map(
+            "TEntry",
+            fieldbackground=[("focus", "#202F3E")],
+            bordercolor=[("focus", "#4C988A"), ("!focus", BORDER)],
+            lightcolor=[("focus", "#4C988A"), ("!focus", BORDER)],
+            darkcolor=[("focus", "#4C988A"), ("!focus", BORDER)],
+        )
         style.configure("TCombobox", fieldbackground=PANEL_2, foreground=TEXT)
         style.configure("TCheckbutton", background=PANEL, foreground=TEXT)
-        style.configure("Horizontal.TProgressbar", background=ACCENT, troughcolor=PANEL_2, bordercolor=PANEL_2, lightcolor=ACCENT, darkcolor=ACCENT)
+        style.configure("Horizontal.TProgressbar", background=ACCENT, troughcolor="#17212A", bordercolor="#17212A", lightcolor=ACCENT, darkcolor=ACCENT, thickness=4)
 
     def _build_shell(self) -> None:
         sidebar = tk.Frame(self, bg=SIDEBAR, width=224)
@@ -363,42 +373,47 @@ class App(tk.Tk):
         source_row = tk.Frame(body, bg=BG)
         source_row.pack(fill="both", expand=True, pady=(10, 0))
 
-        automatic = tk.Frame(source_row, bg="#121B20", highlightthickness=1, highlightbackground="#2A413D")
+        automatic = tk.Frame(source_row, bg="#111A20", highlightthickness=1, highlightbackground="#2B413D")
         automatic.pack(fill="both", expand=True)
-        tk.Frame(automatic, bg=ACCENT, height=2).pack(fill="x")
-        hero_body = tk.Frame(automatic, bg="#121B20")
-        hero_body.pack(fill="both", expand=True, padx=(24, 17), pady=(20, 18))
+        tk.Frame(automatic, bg="#61C8B1", height=2).pack(fill="x")
+        hero_body = tk.Frame(automatic, bg="#111A20")
+        hero_body.pack(fill="both", expand=True, padx=(25, 18), pady=(14, 13))
         hero_body.grid_columnconfigure(0, weight=1)
+        hero_body.grid_columnconfigure(1, weight=0)
         hero_body.grid_rowconfigure(0, weight=1)
-        auto_inner = tk.Frame(hero_body, bg="#121B20")
+        auto_inner = tk.Frame(hero_body, bg="#111A20")
         auto_inner.grid(row=0, column=0, sticky="nsew")
-        auto_top = tk.Frame(auto_inner, bg="#121B20")
+        auto_inner.grid_columnconfigure(0, weight=1)
+        auto_inner.grid_rowconfigure(0, weight=1)
+        auto_content = tk.Frame(auto_inner, bg="#111A20")
+        auto_content.grid(row=0, column=0, sticky="w")
+        auto_top = tk.Frame(auto_content, bg="#111A20")
         auto_top.pack(fill="x")
         ttk.Label(auto_top, text="LIVE COLLECTION CAPTURE", style="HeroMuted.TLabel", font=("Segoe UI", 8, "bold")).pack(side="left")
-        tk.Label(auto_top, text="LOCAL  ·  PRIVATE", bg="#1A2927", fg="#9EDAC5", padx=9, pady=4, font=("Segoe UI", 7, "bold")).pack(side="left", padx=(12, 0))
-        ttk.Label(auto_inner, text="Every card.\nOne private vault.", style="Hero.TLabel", font=("Segoe UI", 23, "bold"), justify="left").pack(anchor="w", pady=(13, 0))
+        tk.Label(auto_top, text="LOCAL  ·  PRIVATE", bg="#1A2927", fg="#A8DCCB", padx=9, pady=4, font=("Segoe UI", 7, "bold")).pack(side="left", padx=(11, 0))
+        ttk.Label(auto_content, text="Every card.\nOne private vault.", style="Hero.TLabel", font=("Segoe UI", 24, "bold"), justify="left").pack(anchor="w", pady=(12, 0))
         self.auto_description = ttk.Label(
-            auto_inner,
-            text="Read your complete collection from Arena and save it here, ready to search or export.",
-            style="HeroMuted.TLabel", wraplength=480, justify="left",
+            auto_content,
+            text="Capture your complete Arena collection, then search or export it whenever you need it.",
+            style="HeroMuted.TLabel", wraplength=480, justify="left", font=("Segoe UI", 9),
         )
-        self.auto_description.pack(anchor="w", pady=(8, 13))
-        step_row = tk.Frame(auto_inner, bg="#121B20")
-        step_row.pack(fill="x", pady=(0, 15))
+        self.auto_description.pack(anchor="w", pady=(7, 12))
+        step_row = tk.Frame(auto_content, bg="#111A20")
+        step_row.pack(fill="x", pady=(0, 14))
         for index, (number, label) in enumerate((("01", "Open Arena"), ("02", "Sign in"), ("03", "Sync"))):
-            step = tk.Frame(step_row, bg="#121B20")
-            step.pack(side="left", padx=(0, 17))
-            tk.Label(step, text=number, bg="#121B20", fg=ACCENT if index == 2 else "#718A84", font=("Segoe UI", 8, "bold")).pack(side="left", padx=(0, 6))
-            tk.Label(step, text=label, bg="#121B20", fg="#B7C4C3", font=("Segoe UI", 8)).pack(side="left")
+            step = tk.Frame(step_row, bg="#111A20")
+            step.pack(side="left", padx=(0, 19))
+            tk.Label(step, text=number, bg="#111A20", fg=ACCENT if index == 2 else "#8B9B9F", font=("Segoe UI", 8, "bold")).pack(side="left", padx=(0, 7))
+            tk.Label(step, text=label, bg="#111A20", fg="#C2CECE", font=("Segoe UI", 9)).pack(side="left")
         self.memory_button = ttk.Button(
-            auto_inner, text="Sync collection  →", style="Accent.TButton", command=self._start_memory
+            auto_content, text="Sync collection  →", style="Accent.TButton", command=self._start_memory
         )
         self.memory_button.pack(anchor="w")
-        tk.Label(auto_inner, text="Arena must be open, signed in, and at the Home screen.", bg="#121B20", fg="#738681", font=("Segoe UI", 8)).pack(anchor="w", pady=(11, 0))
+        tk.Label(auto_content, text="Arena must be open, signed in, and at the Home screen.", bg="#111A20", fg="#8FA29D", font=("Segoe UI", 8)).pack(anchor="w", pady=(9, 0))
 
         self.sync_art = self._build_sync_art(hero_body)
-        self.sync_art.grid(row=0, column=1, sticky="e", padx=(12, 0))
-        self._bind_card_hover(automatic, "#2A413D", "#4B7769")
+        self.sync_art.grid(row=0, column=1, sticky="e", padx=(10, 0))
+        self._bind_card_hover(automatic, "#2B413D", "#4E8172")
 
         manual = tk.Frame(source_row, bg=BG)
         manual.pack(fill="x", pady=(12, 0))
@@ -436,16 +451,26 @@ class App(tk.Tk):
         self.banner_detail.pack(fill="x", pady=(2, 0))
         self.progress = ttk.Progressbar(body, mode="determinate", maximum=100)
         self.progress.pack(fill="x", pady=(8, 0), ipady=2)
+        self.progress.pack_forget()
         controls = tk.Frame(body, bg=BG)
         controls.pack(fill="x", pady=(7, 0))
+        self.controls = controls
         self.activity_button = ttk.Button(controls, text="Show activity  +", style="Subtle.TButton", command=self._toggle_activity)
         self.activity_button.pack(side="left")
         self.stop_button = ttk.Button(controls, text="Cancel", style="Danger.TButton", command=self._stop_worker, state="disabled")
-        self.stop_button.pack(side="right")
-        ttk.Button(controls, text="Copy API URL", style="Subtle.TButton", command=self._copy_api_endpoint).pack(side="right", padx=(5, 0))
-        ttk.Button(controls, text="Local API", style="Subtle.TButton", command=self._start_bridge).pack(side="right", padx=(5, 0))
-        ttk.Button(controls, text="Logs", style="Subtle.TButton", command=lambda: open_path(self.data_dir / "logs")).pack(side="right", padx=(5, 0))
-        ttk.Button(controls, text="Exports", style="Subtle.TButton", command=lambda: open_path(Path(self.output_path_var.get()))).pack(side="right", padx=(5, 0))
+        self.tools_menu = tk.Menu(
+            self, tearoff=False, bg=PANEL, fg=TEXT, activebackground="#21443D",
+            activeforeground=TEXT, disabledforeground=MUTED, bd=0, relief="flat",
+            font=("Segoe UI", 9), selectcolor=ACCENT,
+        )
+        self.tools_menu.add_command(label="Open exports folder", command=lambda: open_path(Path(self.output_path_var.get())))
+        self.tools_menu.add_command(label="Open logs", command=lambda: open_path(self.data_dir / "logs"))
+        self.tools_menu.add_separator()
+        self.tools_menu.add_command(label="Start local API", command=self._start_bridge)
+        self.tools_menu.add_command(label="Copy API address", command=self._copy_api_endpoint)
+        self.tools_button = ttk.Button(controls, text="Tools  ▾", style="Subtle.TButton", command=self._show_tools_menu)
+        self.tools_button.pack(side="right")
+        ttk.Button(controls, text="Open exports", style="Subtle.TButton", command=lambda: open_path(Path(self.output_path_var.get()))).pack(side="right", padx=(0, 6))
 
         self.activity_panel = tk.Frame(body, bg=PANEL, highlightthickness=1, highlightbackground=BORDER)
         log_inner = tk.Frame(self.activity_panel, bg=PANEL)
@@ -461,30 +486,27 @@ class App(tk.Tk):
         return page
 
     def _build_sync_art(self, parent: tk.Widget) -> tk.Canvas:
-        art = tk.Canvas(parent, width=232, height=218, bg="#121B20", highlightthickness=0, bd=0)
-        art.create_oval(31, 18, 201, 188, outline="#263C38", width=1)
-        art.create_oval(43, 30, 189, 176, outline="#1F302E", width=1)
-        art.create_oval(55, 42, 177, 164, outline="#1B2B2A", width=1)
-        art.create_arc(31, 18, 201, 188, start=24, extent=62, style="arc", outline="#4D8072", width=2, tags="orbit_arc")
-        art.create_polygon(68, 48, 122, 38, 169, 126, 113, 142, fill="#17242B", outline="#31464A", width=1)
-        art.create_polygon(78, 68, 130, 54, 165, 143, 110, 159, fill="#1B2C30", outline="#436158", width=1)
-        art.create_polygon(90, 82, 125, 72, 150, 134, 112, 146, fill="#233B37", outline="#668B78", width=1)
-        art.create_polygon(119, 85, 136, 108, 119, 131, 102, 108, fill="#8AC9A8", outline="#D2F0CB", width=1)
-        art.create_oval(111, 100, 127, 116, fill="#D9F2D5", outline="")
-        art.create_line(48, 110, 76, 110, fill="#344A45", width=1)
-        art.create_line(156, 92, 184, 92, fill="#344A45", width=1)
-        art.create_oval(55, 48, 59, 52, fill="#7BAE98", outline="")
-        art.create_oval(173, 148, 177, 152, fill="#7BAE98", outline="")
-        art.create_oval(111, 9, 119, 17, fill=ACCENT, outline="", tags="orbit_dot")
-        art.create_text(116, 202, text="COLLECTION  /  LOCAL", fill="#78918A", font=("Segoe UI", 7, "bold"))
+        art = tk.Canvas(parent, width=292, height=304, bg="#111A20", highlightthickness=0, bd=0)
+        art.create_oval(28, 14, 264, 250, outline="#233A37", width=1)
+        art.create_oval(39, 25, 253, 239, outline="#1B2D2B", width=1)
+        art.create_arc(28, 14, 264, 250, start=28, extent=74, style="arc", outline="#4E8879", width=2, tags="orbit_arc")
+        art.create_oval(26, 126, 34, 134, fill=ACCENT, outline="", tags="orbit_dot")
+        try:
+            bundle_root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+            self.sync_art_image = tk.PhotoImage(file=str(bundle_root / "assets" / "collection_vault.png"))
+            art.create_image(146, 138, image=self.sync_art_image, tags="vault")
+        except tk.TclError:
+            art.create_text(146, 132, text="✦", fill=ACCENT, font=("Segoe UI", 54, "bold"), tags="vault")
+        art.create_text(146, 284, text="PRIVATE COLLECTION", fill="#A6B9B2", font=("Segoe UI", 8, "bold"))
+        art.create_text(146, 297, text="STORED ON THIS PC", fill="#738A83", font=("Segoe UI", 7, "bold"))
         return art
 
     def _animate_sync_art(self) -> None:
         if self._closing or not hasattr(self, "sync_art"):
             return
-        phase = (time.monotonic() * 0.45) % (2 * math.pi)
-        center_x, center_y = 116, 103
-        radius_x, radius_y = 83, 82
+        phase = (time.monotonic() * 0.35) % (2 * math.pi)
+        center_x, center_y = 146, 132
+        radius_x, radius_y = 122, 120
         x = center_x + math.cos(phase) * radius_x
         y = center_y + math.sin(phase) * radius_y
         self.sync_art.coords("orbit_dot", x - 3, y - 3, x + 3, y + 3)
@@ -492,6 +514,12 @@ class App(tk.Tk):
         self.sync_art.itemconfigure("orbit_dot", fill=color)
         self.sync_art.itemconfigure("orbit_arc", start=int((phase * 57.2958) % 360))
         self.after(90, self._animate_sync_art)
+
+    def _show_tools_menu(self) -> None:
+        self.tools_menu.tk_popup(
+            self.tools_button.winfo_rootx(),
+            self.tools_button.winfo_rooty() + self.tools_button.winfo_height(),
+        )
 
     def _build_collection_page(self) -> tk.Frame:
         page = tk.Frame(self.content, bg=BG)
@@ -726,10 +754,12 @@ class App(tk.Tk):
             return
         self.cancel_event.clear()
         self.progress["value"] = 0
+        self.progress.pack(fill="x", pady=(8, 0), ipady=2, before=self.controls)
         self.memory_button.configure(text=button_text)
         self.memory_button.configure(state="disabled")
         self.manual_button.configure(state="disabled")
         self.stop_button.configure(state="normal")
+        self.stop_button.pack(side="right", padx=(6, 0))
         self._toggle_activity(True)
         self.worker = threading.Thread(target=target, daemon=True)
         self.worker.start()
@@ -998,6 +1028,9 @@ class App(tk.Tk):
         self.memory_button.configure(state="normal")
         self.manual_button.configure(state="normal")
         self.stop_button.configure(state="disabled")
+        self.stop_button.pack_forget()
+        if float(self.progress["value"]) < 100:
+            self.progress.pack_forget()
         self.worker = None
 
     def _refresh_all(self) -> None:

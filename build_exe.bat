@@ -37,6 +37,7 @@ if errorlevel 1 goto :failed
 "%APP_PYTHON%" -m PyInstaller --noconfirm --clean --onefile --windowed ^
   --name MTGA_Collection_Reader ^
   --hidden-import=requests ^
+  --add-data "assets\collection_vault.png;assets" ^
   mtg.py
 if errorlevel 1 goto :failed
 
